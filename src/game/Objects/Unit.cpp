@@ -7199,6 +7199,9 @@ PlayerMovementPendingChange::PlayerMovementPendingChange()
 
 void Unit::UpdateSpeed(UnitMoveType mtype, bool forced, float ratio)
 {
+	if (HasUnitState(UNIT_STATE_ROOT | UNIT_STATE_STUNNED))
+		return;
+
     // not in combat pet have same speed as owner
     if (IsCreature() && ((Creature*)this)->IsPet() && HasUnitState(UNIT_STATE_FOLLOW) && !IsInCombat())
     {
