@@ -45,6 +45,7 @@
 #include "IO/Timer/AsyncSystemTimer.h"
 #include "IO/Filesystem/FileSystem.h"
 #include "ProxyProtocol/ProxyV2Reader.h"
+#include <algorithm>
 
 #ifdef ENABLE_MAILSENDER
 #include "MailerService.h"
@@ -818,6 +819,35 @@ void AuthSocket::_HandleLogonProof__PostRecv(std::shared_ptr<sAuthLogonProof_C c
             });
             return;
         }
+
+		// 检查本机是否有登录器会话，如果有则只允许会话对应的账号登录
+		{
+			auto result = LoginDatabase.PQuery("SELECT username FROM launcher_sessions WHERE public_ip = '%s'", GetRemoteIpString().c_str());
+			if (result)
+			{
+				Field* fields = result->Fetch();
+				std::string sessionUser = fields[0].GetCppString();
+				if (!sessionUser.empty())
+				{
+					std::string sessionUpper = sessionUser;
+					std::string loginUpper = m_safelogin;
+					std::transform(sessionUpper.begin(), sessionUpper.end(), sessionUpper.begin(), ::toupper);
+					std::transform(loginUpper.begin(), loginUpper.end(), loginUpper.begin(), ::toupper);
+					if (sessionUpper != loginUpper)
+					{
+						sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[AuthChallenge] Launcher session active for '%s', rejecting '%s'", sessionUser.c_str(), m_login.c_str());
+						std::shared_ptr<ByteBuffer> pkt(new ByteBuffer());
+						*pkt << (uint8)CMD_AUTH_LOGON_PROOF;
+						*pkt << (uint8)WOW_FAIL_SUSPENDED;
+						m_socket.Write(std::move(pkt), [self = shared_from_this()](IO::NetworkError const& error)
+						{
+							self->DoRecvIncomingData();
+						});
+						return;
+					}
+				}
+			}
+		}
 
         sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[AuthChallenge] Account '%s' using IP '%s' successfully authenticated", m_login.c_str(), GetRemoteIpString().c_str());
 
