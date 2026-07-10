@@ -7943,10 +7943,15 @@ void Player::SendLoot(ObjectGuid guid, LootType lootType, Player const* pVictim)
                     if (lootId)
                         loot->FillLoot(lootId, LootTemplates_Pickpocketing, this, false);
 
-                    // Generate extra money for pick pocket loot
-                    uint32 const a = urand(0, creature->GetLevel() / 2);
-                    uint32 const b = urand(0, GetLevel() / 2);
-                    loot->gold += uint32(10 * (a + b) * sWorld.getConfig(CONFIG_FLOAT_RATE_DROP_MONEY));
+					// Generate extra money for pick pocket loot
+					uint32 const a = urand(0, creature->GetLevel());
+					uint32 const b = urand(0, creature->GetLevel());
+					uint32 gold = (a + b) * 5;
+					if (gold < 1)
+						gold = 1;
+					if (gold > uint32(creature->GetLevel() * 10))
+						gold = creature->GetLevel() * 10;
+					loot->gold += uint32(gold * sWorld.getConfig(CONFIG_FLOAT_RATE_DROP_MONEY));
 
                     creature->lootForPickPocketed = true;
                 }
