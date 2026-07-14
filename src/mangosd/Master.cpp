@@ -60,6 +60,7 @@
 
 #ifdef WIN32
 #include "ServiceWin32.h"
+#include <TlHelp32.h>
 extern volatile int m_ServiceStatus;
 #endif
 
@@ -129,6 +130,34 @@ Master::Master()
 Master::~Master()
 {
 }
+
+#ifdef WIN32
+bool IsAuthServerRunning()
+{
+	HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	if (hSnapshot == INVALID_HANDLE_VALUE)
+		return false;
+
+	PROCESSENTRY32 pe;
+	pe.dwSize = sizeof(PROCESSENTRY32);
+
+	bool found = false;
+	if (Process32First(hSnapshot, &pe))
+	{
+		do
+		{
+			if (_stricmp(pe.szExeFile, "AuthServer.exe") == 0)
+			{
+				found = true;
+				break;
+			}
+		} while (Process32Next(hSnapshot, &pe));
+	}
+
+	CloseHandle(hSnapshot);
+	return found;
+}
+#endif
 
 // Main function
 int Master::Run()
@@ -310,13 +339,30 @@ int Master::Run()
         trustedProxyIps,
     };
 
-    if (!sWorldSocketMgr.StartWorldNetworking(ioCtx, socketOptions))
-    {
-        Log::WaitBeforeContinueIfNeed();
-        World::StopNow(ERROR_EXIT_CODE);
-    }
+	if (!sWorldSocketMgr.StartWorldNetworking(ioCtx, socketOptions))
+	{
+		Log::WaitBeforeContinueIfNeed();
+		World::StopNow(ERROR_EXIT_CODE);
+	}
 
-    world_thread.join(); // <-- This will block until the world stops
+#ifdef WIN32
+	sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "Waiting 3 seconds before checking AuthServer...");
+	std::this_thread::sleep_for(std::chrono::seconds(3));
+	if (!IsAuthServerRunning())
+	{
+		sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "AuthServer not found, retrying in 2 seconds...");
+		std::this_thread::sleep_for(std::chrono::seconds(2));
+		if (!IsAuthServerRunning())
+		{
+			sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "AuthServer.exe not found! Shutting down mangosd...");
+			Log::WaitBeforeContinueIfNeed();
+			World::StopNow(ERROR_EXIT_CODE);
+		}
+	}
+	sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "AuthServer.exe detected.");
+#endif
+
+	world_thread.join();
 
     _UnhookSignals(); // Remove signal handling before leaving
 
