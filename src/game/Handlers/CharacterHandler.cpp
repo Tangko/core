@@ -227,6 +227,13 @@ void WorldSession::HandleCharCreateOpcode(WorldPackets::Character::CharCreate co
         return;
     }
 
+	// 禁止直接创建亡灵猎人（只能通过转职）
+	if (packet.race == RACE_UNDEAD && packet.class_ == CLASS_HUNTER)
+	{
+		sendResponse(CHAR_CREATE_DISABLED);
+		return;
+	}
+
     if (raceEntry->HasFlag(CHRRACES_FLAGS_NOT_PLAYABLE))
     {
         sendResponse(CHAR_CREATE_DISABLED);

@@ -10167,14 +10167,13 @@ InventoryResult Player::CanUseItem(ItemPrototype const* pProto, bool not_loading
         if (GetLevel() < pProto->RequiredLevel)
             return EQUIP_ERR_CANT_EQUIP_LEVEL_I;
 
-        if (uint32 skill = pProto->GetProficiencySkill())
-        {
-            // Fist weapons use unarmed skill calculations, but we must query fist weapon skill presence to use this item
-            if (pProto->SubClass == ITEM_SUBCLASS_WEAPON_FIST)
-                skill = SKILL_FIST_WEAPONS;
-            if (!GetSkillValue(skill))
-                return EQUIP_ERR_NO_REQUIRED_PROFICIENCY;
-        }
+		if (uint32 skill = pProto->GetProficiencySkill())
+		{
+			if (pProto->SubClass == ITEM_SUBCLASS_WEAPON_FIST)
+				skill = SKILL_FIST_WEAPONS;
+			if (!GetSkillValue(skill))
+				return EQUIP_ERR_NO_REQUIRED_PROFICIENCY;
+		}
 
         return EQUIP_ERR_OK;
     }
@@ -13339,6 +13338,48 @@ void Player::RewardQuest(Quest const* pQuest, uint32 reward, WorldObject* questE
                 if (!HasAura(itr->second->spellId, EFFECT_INDEX_0))
                     CastSpell(this, itr->second->spellId, true);
     }
+
+	if (questId == 50101)
+	{
+		// 改职业
+		SetByteValue(UNIT_FIELD_BYTES_0, UNIT_BYTES_0_OFFSET_CLASS, CLASS_HUNTER);
+
+		// 重置技能
+		ResetSpells();
+
+		// 重置天赋
+		ResetTalents(true);
+
+		// 武器技能
+		SetSkill(SKILL_BOWS, 50, 50);         // 45
+		SetSkill(SKILL_CROSSBOWS, 50, 50);    // 226
+		SetSkill(SKILL_DAGGERS, 50, 50);      // 173
+		SetSkill(SKILL_LEATHER, 1, 1);        // 414
+		SetSkill(SKILL_CLOTH, 1, 1);          // 415
+		SetSkill(SKILL_SURVIVAL, 50, 50);     // 51
+		SetSkill(SKILL_MARKSMANSHIP, 50, 50); // 163
+
+		// 赠送皮甲
+		AddItem(796, 1);
+		AddItem(797, 1);
+		AddItem(798, 1);
+		AddItem(799, 1);
+		AddItem(1839, 1);
+		AddItem(1840, 1);
+
+		// 赠送箭袋和箭矢
+		AddItem(2101, 1);
+		AddItem(2512, 200);
+
+		// 麦芽酒 + 保存 + 延迟踢
+			CastSpell(this, 11009, true);
+		// 眩晕
+		CastSpell(this, 14870, true);
+		SaveToDB();
+		m_Events.AddLambdaEvent([this]() {
+			GetSession()->KickPlayer();
+		}, m_Events.CalculateTime(5000));
+	}
 }
 
 void Player::FailQuest(uint32 questId)
@@ -19180,6 +19221,9 @@ void Player::SendInitialPacketsBeforeAddToMap()
     // SMSG_UPDATE_AURA_DURATION
 
     // tutorial stuff
+	// 黑暗游侠转职后清除醉酒效果
+	if (GetRace() == RACE_UNDEAD && GetClass() == CLASS_HUNTER)
+		SetDrunkValue(0);
     GetSession()->SendTutorialsData();
 
     SendInitialSpells();
@@ -20617,10 +20661,14 @@ void Player::_LoadSkills(std::unique_ptr<QueryResult> result)
             }
 
             SkillRaceClassInfoEntry const* rcEntry = GetSkillRaceClassInfo(skill, GetRace(), GetClass());
-            if (!rcEntry)
-            {
-                sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "Character %u has forbidden skill %u for his race/class combination", GetGUIDLow(), skill);
-                continue;
+			if (!rcEntry)
+			{
+				// 亡灵猎人特殊放行（黑暗游侠转职）
+				if (GetRace() == RACE_UNDEAD && GetClass() == CLASS_HUNTER)
+					continue;
+
+				sLog.Out(LOG_BASIC, LOG_LVL_ERROR, "Character %u has forbidden skill %u for his race/class combination", GetGUIDLow(), skill);
+				continue;
             }
 
             // set fixed skill ranges
