@@ -1999,6 +1999,30 @@ void World::Update(uint32 diff)
     // Update mass mailer tasks if any
     sMassMailMgr.Update();
 
+	// 定时踢出时间用尽的玩家（每60秒检查一次）
+	static uint32 timeCheckTimer = 0;
+	timeCheckTimer += diff;
+	if (timeCheckTimer >= 60000) {
+		timeCheckTimer = 0;
+		//sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[PlayTime] Checking expired accounts...");
+		std::unique_ptr<QueryResult> result = LoginDatabase.PQuery(
+			"SELECT id, username FROM account WHERE online = 1 AND playtime_remaining <= 0");
+		if (result) {
+			do {
+				Field* fields = result->Fetch();
+				uint32 accId = fields[0].GetUInt32();
+				SessionMap const& sessions = sWorld.GetAllSessions();
+				for (auto& pair : sessions) {
+					if (pair.second->GetAccountId() == accId) {
+						sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[PlayTime] Kicking account %u", accId);
+						pair.second->KickPlayer();
+						break;
+					}
+				}
+			} while (result->NextRow());
+		}
+	}
+
     // <ul><li> Handle auctions when the timer has passed
     if (m_timers[WUPDATE_AUCTIONS].Passed())
     {

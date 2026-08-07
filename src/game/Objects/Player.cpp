@@ -1118,6 +1118,29 @@ void Player::Update(uint32 update_diff, uint32 p_time)
 
     //used to implement delayed far teleports
     SetCanDelayTeleport(true);
+
+	// 账号时间消耗：每60秒扣1分钟，到0踢出
+	static uint32 playtimeTick = 0;
+	playtimeTick += update_diff;
+	if (playtimeTick >= 60000) {
+		playtimeTick = 0;
+		if (GetSession()) {
+			uint32 accountId = GetSession()->GetAccountId();
+			LoginDatabase.PExecute(
+				"UPDATE account SET playtime_remaining = playtime_remaining - 1 "
+				"WHERE id = %u AND playtime_remaining > 0", accountId);
+			// 检查是否时间用完
+			std::unique_ptr<QueryResult> result = LoginDatabase.PQuery(
+				"SELECT playtime_remaining FROM account WHERE id = %u", accountId);
+			if (result) {
+				Field* fields = result->Fetch();
+				if (fields[0].GetUInt32() == 0) {
+					GetSession()->KickPlayer();
+				}
+			}
+		}
+	}
+
     Unit::Update(update_diff, p_time);
     if (m_AI)
         m_AI->UpdateAI(p_time);

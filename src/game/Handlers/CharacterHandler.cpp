@@ -500,6 +500,23 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder *holder)
 
     ASSERT(pCurrChar->GetSession() == this);
     SetPlayer(pCurrChar);
+
+	// 账号时间检查：进入世界后检查，时间用完踢出
+	{
+		uint32 accountId = GetAccountId();
+		std::unique_ptr<QueryResult> result = LoginDatabase.PQuery(
+			"SELECT playtime_remaining FROM account WHERE id = %u", accountId);
+		if (result)
+		{
+			Field* fields = result->Fetch();
+			if (fields[0].GetUInt32() == 0)
+			{
+				KickPlayer();
+				return;
+			}
+		}
+	}
+
     if (pCurrMasterPlayer)
     {
         pCurrMasterPlayer->GetSession()->SetMasterPlayer(nullptr);

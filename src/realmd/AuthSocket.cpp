@@ -54,6 +54,19 @@
 
 #include <ctime>
 
+static std::string DRByteArrayToHexStr(const uint8* data, size_t len)
+{
+	std::string result;
+	result.reserve(len * 2);
+	char buf[3];
+	for (size_t i = 0; i < len; ++i)
+	{
+		snprintf(buf, sizeof(buf), "%02x", data[i]);
+		result += buf;
+	}
+	return result;
+}
+
 //#include "Util.h" -- for commented utf8ToUpperOnlyLatin
 
 typedef struct AuthHandler
@@ -743,7 +756,13 @@ void AuthSocket::_HandleLogonProof__PostRecv(std::shared_ptr<sAuthLogonProof_C c
     // Check if SRP6 results match (password is correct), else send an error
     if (!srp.Proof(lp->M1, 20) && pinResult)
     {
-        if (!VerifyVersion(lp->A, sizeof(lp->A), lp->crc_hash, false))
+		/*
+		// 白名单：允许 4GB LAA 版本
+		std::string currentHash = DRByteArrayToHexStr(lp->crc_hash, 4);
+		sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[AuthChallenge] CRC hash: %s", currentHash.c_str());
+		bool isAllowed = (currentHash == "1a9baddc");
+
+		if (!isAllowed && !VerifyVersion(lp->A, sizeof(lp->A), lp->crc_hash, false))
         {
             sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[AuthChallenge] Account %s tried to login with modified client!", m_login.c_str());
 
@@ -756,6 +775,7 @@ void AuthSocket::_HandleLogonProof__PostRecv(std::shared_ptr<sAuthLogonProof_C c
             });
             return;
         }
+		*/
 
         // Geolocking checks must be done after an otherwise successful login to prevent lockout attacks
         if (m_geoUnlockPIN) // remove the PIN to unlock the account since login succeeded
