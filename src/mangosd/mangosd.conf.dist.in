@@ -239,10 +239,19 @@ BindIP = "0.0.0.0"
 #        Default: 1 (permit addon channel)
 #                 0 (do not permit addon channel)
 #
-#    CleanCharacterDB
+#    CharacterDatabaseCleanup.Enable
 #        Perform character db cleanups on start up
 #        Default: 1 (Enable)
 #                 0 (Disabled)
+#
+#    CharacterDatabaseCleanup.Flags
+#        What to be scheduled for cleanup automatically on maintenance day.
+#        Flags:  1 - delete orphaned character data (rows without a row in `characters`)
+#                2 - delete orphaned pet data (rows without a row in `character_pet`)
+#                4 - delete orphaned item data (rows without a row in `item_instance`)
+#                8 - delete unknown skills from `character_skills`
+#               16 - delete unknown spells from `character_spell`
+#        Default: 7 (Characters, Pets, Items)
 #
 #    ReusableGuidPoolSize
 #        Preload unused guids in db to reuse for new characters, items, texts and corpses.
@@ -283,7 +292,8 @@ UpdateUptimeInterval = 10
 MaxCoreStuckTime = 0
 BanListReloadTimer = 120
 AddonChannel = 1
-CleanCharacterDB = 1
+CharacterDatabaseCleanup.Enable = 1
+CharacterDatabaseCleanup.Flags = 7
 ReusableGuidPoolSize = 100000
 
 # Optimization / load mitigation settings
