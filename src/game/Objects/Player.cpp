@@ -82,6 +82,7 @@
 #include "GameEventMgr.h"
 #include "world/scourge_invasion.h"
 #include "world/world_event_wareffort.h"
+#include "AuthServerConnector.h"
 
 #include <climits>
 
@@ -12727,6 +12728,24 @@ bool Player::CanCompleteQuest(uint32 questId) const
     if (!qInfo)
         return false;
 
+	// 可乐券兑换任务检查
+	if (questId == 10000)
+	{
+		uint32 accountId = GetSession()->GetAccountId();
+		std::string username = GetSession()->GetUsername();
+		std::string resp = AuthServerConnector::SendCommand("COLA " + username);
+		if (resp.find("OK:COLA=") != std::string::npos)
+		{
+			int cola = atoi(resp.c_str() + 8);
+			if (cola < 10)
+				return false;
+		}
+		else
+		{
+			return false;
+		}
+	}
+
     // only used for "flag" quests and not real in-game quests
     if (qInfo->HasQuestFlag(QUEST_FLAGS_AUTO_REWARDED))
     {
@@ -13203,6 +13222,14 @@ void Player::RemoveQuestAtSlot(uint32 slot)
 void Player::RewardQuest(Quest const* pQuest, uint32 reward, WorldObject* questEnder, bool announce)
 {
     uint32 questId = pQuest->GetQuestId();
+
+	// 可乐券兑换任务：扣除 10 张可乐券
+	if (questId == 10000)
+	{
+		std::string username = GetSession()->GetUsername();
+		std::string resp = AuthServerConnector::SendSignedCommand("SPEND_COLA", username, "10");
+		sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[Cola] SPEND_COLA resp: %s", resp.c_str());
+	}
 
     for (int i = 0; i < QUEST_ITEM_OBJECTIVES_COUNT; ++i)
     {
