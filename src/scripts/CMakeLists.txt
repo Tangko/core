@@ -239,6 +239,8 @@ set (SCRIPTS_SRCS
     spells/spell_special.cpp
     spells/spell_warlock.cpp
     spells/spell_warrior.cpp
+	spells/spell_pet_transform.cpp
+	spells/spell_pet_swap.cpp
     world/areatrigger_scripts.cpp
     world/elemental_invasions.cpp
     world/fireworks_show.cpp

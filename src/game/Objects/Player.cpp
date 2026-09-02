@@ -19956,6 +19956,10 @@ bool Player::HasItemFitToSpellReqirements(SpellEntry const* spellInfo, Item cons
     if (spellInfo->EquippedItemClass < 0)
         return true;
 
+	// 消耗品无装备限制
+	if (spellInfo->EquippedItemClass == 0)
+		return true;
+
     // scan other equipped items for same requirements (mostly 2 daggers/etc)
     // for optimize check 2 used cases only
     switch (spellInfo->EquippedItemClass)

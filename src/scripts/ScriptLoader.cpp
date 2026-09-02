@@ -4,6 +4,10 @@
 
 #include "scriptPCH.h"
 
+void AddSC_pet_transform();
+
+void AddSC_pet_swap();
+
 //battlegrounds
 void AddSC_battleground();
 void AddSC_bg_alterac();
@@ -249,6 +253,9 @@ void AddSC_warrior_spell_scripts();
 
 void AddScripts()
 {
+	AddSC_pet_transform();
+	AddSC_pet_swap();
+
     //battlegrounds
     AddSC_battleground();
     AddSC_bg_alterac();
