@@ -3064,16 +3064,6 @@ bool Unit::CanSwimAtPosition(float x, float y, float z) const
     return GetTerrain()->IsSwimmable(x, y, z, GetMinSwimDepth());
 }
 
-bool Unit::IsInWater() const
-{
-    return GetTerrain()->IsInWater(GetPositionX(), GetPositionY(), GetPositionZ());
-}
-
-bool Unit::IsUnderwater() const
-{
-    return GetTerrain()->IsUnderWater(GetPositionX(), GetPositionY(), GetPositionZ());
-}
-
 float Unit::GetSpeedForMovementInfo(MovementInfo const& movementInfo) const
 {
     float speed = 0.0f;
@@ -7428,6 +7418,14 @@ void Unit::SetRooted(bool apply)
     {
         SetRootedReal(apply);
         MovementPacketSender::SendMovementFlagChangeToAll(this, MOVEFLAG_ROOT, apply);
+
+        // Hackfix: Old clients teleport unit to last point if new spline begins right after unroot.
+        // In 1.8 sniffs it appears that the creature only begins chasing on the next world update,
+        // but motion is updated right away in our core, so send a sacrificial STOP spline after unroot.
+#if SUPPORTED_CLIENT_BUILD <= CLIENT_BUILD_1_6_1
+        if (!apply)
+            StopMoving(true);
+#endif
     }
 }
 

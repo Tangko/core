@@ -3471,13 +3471,7 @@ void Player::InitStatsForLevel(bool reapplyMods)
 
 void Player::SendInitialSpells() const
 {
-    uint16 spellCount = 0;
-
-    WorldPacket data(SMSG_INITIAL_SPELLS, (1 + 2 + 4 * m_spells.size() + 2 + m_cooldownMap.size() * (2 + 2 + 2 + 4 + 4)));
-    data << uint8(0);
-
-    size_t countPos = data.wpos();
-    data << uint16(spellCount);                             // spell count placeholder
+    auto packet = std::make_unique<WorldPackets::Spell::InitialSpells>();
 
     for (const auto& spell : m_spells)
     {
@@ -3487,20 +3481,11 @@ void Player::SendInitialSpells() const
         if (!spell.second.active || spell.second.disabled)
             continue;
 
-        data << uint16(spell.first);
-        data << uint16(0);                                  // it's not slot id
-
-        spellCount += 1;
+        packet->knownSpells.emplace_back(uint16(spell.first), int16(0));
     }
 
-    data.put<uint16>(countPos, spellCount);                 // write real count value
-
     // write cooldown data
-    uint32 cdCount = 0;
-    const size_t cdCountPos = data.wpos();
-    data << uint16(0);
     auto currTime = sWorld.GetCurrentClockTime();
-
     for (auto& cdItr : m_cooldownMap)
     {
         auto& cdData = cdItr.second;
@@ -3524,17 +3509,9 @@ void Player::SendInitialSpells() const
             catCDDuration |= 0x80000000;
         }
 
-        data << uint16(cdData->GetSpellEntry()->Id);
-        data << uint16(cdData->GetItemId());                // cast item id
-        data << uint16(cdData->GetCategory());              // spell category
-        data << uint32(spellCDDuration);                    // cooldown
-        data << uint32(catCDDuration);                      // category cooldown
-        ++cdCount;
+        packet->cooldowns.emplace_back(uint16(cdData->GetSpellEntry()->Id), uint16(cdData->GetItemId()), uint16(cdData->GetCategory()), int32(spellCDDuration), int32(catCDDuration));
     }
-
-    data.put<uint16>(cdCountPos, cdCount);
-
-    GetSession()->SendPacket(&data);
+    GetSession()->SendPacket(std::move(packet));
 
     sLog.Out(LOG_BASIC, LOG_LVL_DETAIL, "CHARACTER: Sent Initial Spells");
 }
@@ -5088,41 +5065,30 @@ void Player::RepopAtGraveyard()
     else
         pClosestGrave = sObjectMgr.GetClosestGraveYard(GetPositionX(), GetPositionY(), GetPositionZ(), GetMapId(), GetTeam());
 
-    float orientation = GetOrientation();
-
-    // World of Warcraft Client Patch 1.8.0 (2005-10-11)
-    // - All graveyards that needed adjustment were changed so that a
-    //   character's spirit comes into the world facing toward the Spirit Healer.
-#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_7_1
     if (pClosestGrave)
-        if (float facing = sObjectMgr.GetWorldSafeLocFacing(pClosestGrave->ID))
-            orientation = facing;
-#endif
-
-    if (IsAlive())
     {
-        if (pClosestGrave)
-            TeleportTo(pClosestGrave->map_id, pClosestGrave->x, pClosestGrave->y, pClosestGrave->z, orientation, TELE_TO_NOT_UNSUMMON_PET, std::move(recover));
-    }
-    else
-    {
-        // if no grave found, stay at the current location
-        // and don't show spirit healer location
-        if (pClosestGrave)
+        // Release spirit from transport => Teleport alive at nearest graveyard.
+        if (!IsAlive() && GetTransport())
         {
-            // Release spirit from transport => Teleport alive at nearest graveyard.
-            if (GetTransport())
-            {
-                GetTransport()->RemovePassenger(this);
-                ResurrectPlayer(1.0f);
-            }
-            TeleportTo(pClosestGrave->map_id, pClosestGrave->x, pClosestGrave->y, pClosestGrave->z, orientation, TELE_TO_NOT_UNSUMMON_PET, std::move(recover));
+            GetTransport()->RemovePassenger(this);
+            ResurrectPlayer(1.0f);
         }
 
-        // Fix invisible spirit healer if you die close to graveyard.
-        if (IsInWorld())
-            UpdateVisibilityAndView();
+        // World of Warcraft Client Patch 1.8.0 (2005-10-11)
+        // - All graveyards that needed adjustment were changed so that a
+        //   character's spirit comes into the world facing toward the Spirit Healer.
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_7_1
+        float orientation = sObjectMgr.GetWorldSafeLocFacing(pClosestGrave->ID);
+#else
+        float orientation = GetOrientation();
+#endif
+
+        TeleportTo(pClosestGrave->map_id, pClosestGrave->x, pClosestGrave->y, pClosestGrave->z, orientation, TELE_TO_NOT_UNSUMMON_PET, std::move(recover)); 
     }
+
+    // Fix invisible spirit healer if you die close to graveyard.
+    if (!IsAlive() && IsInWorld())
+        UpdateVisibilityAndView();
 }
 
 void Player::JoinedChannel(Channel* c)
@@ -11996,15 +11962,6 @@ void Player::ApplyEnchantment(Item* item, EnchantmentSlot slot, bool apply, bool
     }
 }
 
-void Player::BuildEnchantmentLog(WorldPacket& data, ObjectGuid casterGuid, uint32 itemId, uint32 spellId, bool showAffiliation) const
-{
-    data << GetObjectGuid();
-    data << ObjectGuid(casterGuid); // message says enchant has faded if empty
-    data << uint32(itemId);
-    data << uint32(spellId);
-    data << uint8(showAffiliation); // only used if casterGuid is not empty
-}
-
 void Player::SendEnchantmentLog(ObjectGuid casterGuid, uint32 itemId, uint32 spellId) const
 {
     auto selfEnchant = std::make_unique<WorldPackets::Item::EnchantmentLog>();
@@ -15473,9 +15430,10 @@ bool Player::IsAllowedToLoot(Creature const* creature)
         case FREE_FOR_ALL:
             return true;
         case MASTER_LOOT:
-            // On peut toujours voir ces items.
-            if (loot->hasOverThresholdItem())
-                return true;
+            // All group members may open the loot. With Master Loot, items below the
+            // threshold are directly lootable; items at/above threshold are protected
+            // at take-time in LootHandler (master-looter assignment only).
+            return true;
         case ROUND_ROBIN:
             // may only loot if the player is the loot roundrobin player
             // or if there are free/quest/conditional item for the player
@@ -21193,17 +21151,17 @@ void Player::_SaveBGData()
 
 void Player::SendClearCooldown(uint32 spellId, Unit const* target) const
 {
-    auto clearCooldownPacket = std::make_unique<WorldPackets::Spell::ClearCooldown>();
-    clearCooldownPacket->spellId = spellId;
-    clearCooldownPacket->targetGuid = target->GetObjectGuid();
-    GetSession()->SendPacket(std::move(clearCooldownPacket));
+    auto packet = std::make_unique<WorldPackets::Spell::ClearCooldown>();
+    packet->spellId = spellId;
+    packet->targetGuid = target->GetObjectGuid();
+    GetSession()->SendPacket(std::move(packet));
 }
 
 void Player::SendClearAllCooldowns(Unit const* target) const
 {
-    auto cooldownCheatPacket = std::make_unique<WorldPackets::Spell::CooldownCheat>();
-    cooldownCheatPacket->targetGuid = target->GetObjectGuid();
-    GetSession()->SendPacket(std::move(cooldownCheatPacket));
+    auto packet = std::make_unique<WorldPackets::Spell::CooldownCheat>();
+    packet->targetGuid = target->GetObjectGuid();
+    GetSession()->SendPacket(std::move(packet));
 }
 
 void Player::SendSpellCooldown(uint32 spellId, Milliseconds cooldown, ObjectGuid target) const
@@ -21219,16 +21177,16 @@ void Player::SendSpellCooldown(uint32 spellId, Milliseconds cooldown, ObjectGuid
 
 void Player::SendSpellRemoved(uint32 spellId) const
 {
-    auto removedSpellPacket = std::make_unique<WorldPackets::Spell::RemovedSpell>();
-    removedSpellPacket->spellId = spellId;
-    GetSession()->SendPacket(std::move(removedSpellPacket));
+    auto packet = std::make_unique<WorldPackets::Spell::RemovedSpell>();
+    packet->spellId = spellId;
+    GetSession()->SendPacket(std::move(packet));
 }
 
 void Player::SendChannelUpdate(uint32 time) const
 {
-    WorldPacket data(MSG_CHANNEL_UPDATE, 4);
-    data << uint32(time);
-    SendDirectMessage(&data);
+    auto packet = std::make_unique<WorldPackets::Spell::ChannelUpdate>();
+    packet->duration = time;
+    GetSession()->SendPacket(std::move(packet));
 }
 
 void Player::UpdateChannelStartPosition()

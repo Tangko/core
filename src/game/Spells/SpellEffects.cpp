@@ -53,6 +53,7 @@
 #include "SocialMgr.h"
 
 using namespace Spells;
+using ExecuteLogInfo = WorldPackets::Spell::SpellLogExecute::ExecuteLogInfo;
 
 pEffect SpellEffects[TOTAL_SPELL_EFFECTS] =
 {
@@ -678,6 +679,7 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
                         default:
                             return;
                     };
+                    return;
                 }
                 case 8593:                                  // Symbol of life (restore creature to life)
                 {
@@ -773,7 +775,11 @@ void Spell::EffectDummy(SpellEffectIndex effIdx)
                     if (!m_originalCaster || m_originalCaster->GetTypeId() != TYPEID_PLAYER)
                         return;
 
-                    Creature* channelTarget = m_originalCaster->GetMap()->GetCreature(m_originalCaster->GetChannelObjectGuid());
+                    Spell* pChannel = m_originalCaster->GetCurrentSpell(CURRENT_CHANNELED_SPELL);
+                    if (!pChannel)
+                        return;
+
+                    Creature* channelTarget = ToCreature(pChannel->GetChannelTarget());
 
                     if (!channelTarget)
                         return;
@@ -1717,6 +1723,8 @@ void Spell::EffectPowerDrain(SpellEffectIndex effIdx)
 
         info.powerDrain.multiplier = manaMultiplier;
     }
+
+    AddExecuteLogInfo(effIdx, info);
 }
 
 void Spell::EffectSendEvent(SpellEffectIndex effIdx)
@@ -2079,8 +2087,7 @@ void Spell::EffectOpenLock(SpellEffectIndex effIdx)
             return;
 
         // Arathi Basin banner opening !
-        if ((goInfo->type == GAMEOBJECT_TYPE_BUTTON && goInfo->button.noDamageImmune) ||
-                (goInfo->type == GAMEOBJECT_TYPE_GOOBER && goInfo->goober.losOK))
+        if (goInfo->type == GAMEOBJECT_TYPE_BUTTON && goInfo->button.noDamageImmune)
         {
             //CanUseBattleGroundObject() already called in CheckCast()
             // in battleground check
