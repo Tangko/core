@@ -61,7 +61,7 @@ struct PetTransformScript : SpellScript
 			g_petOriginalDisplay[petGuidLow] = currentDisplay;
 			uint32 newForm = FORMS[urand(0, 3)];
 			pet->SetDisplayId(newForm);
-			pet->SetObjectScale(0.9f);
+			pet->SetObjectScale(1.0f);
 			pet->ForceValuesUpdateAtIndex(UNIT_FIELD_DISPLAYID);
 		}
 		return true;

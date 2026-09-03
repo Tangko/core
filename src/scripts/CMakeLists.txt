@@ -241,6 +241,8 @@ set (SCRIPTS_SRCS
     spells/spell_warrior.cpp
 	spells/spell_pet_transform.cpp
 	spells/spell_pet_swap.cpp
+	spells/spell_cola_level_up.cpp
+	spells/spell_cola_add_time.cpp
     world/areatrigger_scripts.cpp
     world/elemental_invasions.cpp
     world/fireworks_show.cpp

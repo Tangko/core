@@ -5,8 +5,9 @@
 #include "scriptPCH.h"
 
 void AddSC_pet_transform();
-
 void AddSC_pet_swap();
+void AddSC_spell_cola_level_up();
+void AddSC_spell_cola_add_time();
 
 //battlegrounds
 void AddSC_battleground();
@@ -255,6 +256,8 @@ void AddScripts()
 {
 	AddSC_pet_transform();
 	AddSC_pet_swap();
+	AddSC_spell_cola_level_up();
+	AddSC_spell_cola_add_time();
 
     //battlegrounds
     AddSC_battleground();
