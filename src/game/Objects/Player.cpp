@@ -4139,6 +4139,12 @@ bool Player::ResetTalents(bool noCost)
 
     if (m_usedTalentCount == 0)
     {
+		// Remove Spirit Bond rank 2 and 3 when talents are reset
+		if (HasSpell(20895))
+			RemoveSpell(20895, !Spells::IsPassiveSpell(20895), false);
+		if (HasSpell(20896))
+			RemoveSpell(20896, !Spells::IsPassiveSpell(20896), false);
+
         UpdateFreeTalentPoints(false);                      // for fix if need counter
         return false;
     }

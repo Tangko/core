@@ -204,6 +204,18 @@ void WorldSession::SendTrainerList(ObjectGuid guid)
         {
             TrainerSpell const* tSpell = &itr.second;
 
+			// Spirit Bond rank requirement check
+			if (tSpell->spell == 20917)
+			{
+				if (!_player->HasSpell(19578) || _player->GetLevel() < 50)
+					continue;
+			}
+			if (tSpell->spell == 20926)
+			{
+				if (!_player->HasSpell(19578) || !_player->HasSpell(20895) || _player->GetLevel() < 60)
+					continue;
+			}
+
             uint32 triggerSpell = sSpellMgr.GetSpellEntry(tSpell->spell)->EffectTriggerSpell[0];
 
             if (!_player->IsSpellFitByClassAndRace(triggerSpell))
@@ -222,6 +234,18 @@ void WorldSession::SendTrainerList(ObjectGuid guid)
         for (const auto& itr : tSpells->spellList)
         {
             TrainerSpell const* tSpell = &itr.second;
+
+			// Spirit Bond rank requirement check
+			if (tSpell->spell == 20917)
+			{
+				if (!_player->HasSpell(19578) || _player->GetLevel() < 50)
+					continue;
+			}
+			if (tSpell->spell == 20926)
+			{
+				if (!_player->HasSpell(19578) || !_player->HasSpell(20895) || _player->GetLevel() < 60)
+					continue;
+			}
 
             uint32 triggerSpell = sSpellMgr.GetSpellEntry(tSpell->spell)->EffectTriggerSpell[0];
 
