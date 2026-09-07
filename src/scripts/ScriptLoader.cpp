@@ -8,6 +8,7 @@ void AddSC_pet_transform();
 void AddSC_pet_swap();
 void AddSC_spell_cola_level_up();
 void AddSC_spell_cola_add_time();
+void AddSC_spell_cola_drink();
 
 //battlegrounds
 void AddSC_battleground();
@@ -258,6 +259,7 @@ void AddScripts()
 	AddSC_pet_swap();
 	AddSC_spell_cola_level_up();
 	AddSC_spell_cola_add_time();
+	AddSC_spell_cola_drink();
 
     //battlegrounds
     AddSC_battleground();

@@ -243,6 +243,7 @@ set (SCRIPTS_SRCS
 	spells/spell_pet_swap.cpp
 	spells/spell_cola_level_up.cpp
 	spells/spell_cola_add_time.cpp
+	spells/spell_cola_drink.cpp
     world/areatrigger_scripts.cpp
     world/elemental_invasions.cpp
     world/fireworks_show.cpp
