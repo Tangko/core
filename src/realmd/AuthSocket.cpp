@@ -839,7 +839,7 @@ void AuthSocket::_HandleLogonProof__PostRecv(std::shared_ptr<sAuthLogonProof_C c
             });
             return;
         }
-
+		/*
 		// 检查本机是否有登录器会话，如果有则只允许会话对应的账号登录
 		{
 			auto result = LoginDatabase.PQuery("SELECT username FROM launcher_sessions WHERE public_ip = '%s'", GetRemoteIpString().c_str());
@@ -868,7 +868,7 @@ void AuthSocket::_HandleLogonProof__PostRecv(std::shared_ptr<sAuthLogonProof_C c
 				}
 			}
 		}
-
+		*/
         sLog.Out(LOG_BASIC, LOG_LVL_BASIC, "[AuthChallenge] Account '%s' using IP '%s' successfully authenticated", m_login.c_str(), GetRemoteIpString().c_str());
 
         // Successful login clears the brute-force failure counter for this IP.

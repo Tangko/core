@@ -264,7 +264,7 @@ void WorldSession::HandleChatMessageOpcode(WorldPackets::Chat::ChatMessage const
                     if (chn->IsLevelRestricted() && playerPointer->GetLevel() < sWorld.getConfig(CONFIG_UINT32_WORLD_CHAN_MIN_LEVEL)
                         && GetAccountMaxLevel() < sWorld.getConfig(CONFIG_UINT32_PUB_CHANS_MUTE_VANISH_LEVEL))
                     {
-                        ChatHandler(this).SendSysMessage("You cannot use this channel yet.");
+						ChatHandler(this).SendSysMessage("\xE8\xAF\xA5\xE9\xA2\x91\xE9\x81\x93\xE9\x9C\x80\xE8\xA6\x81\xE8\xBE\xBE\xE5\x88\xB0" "5" "\xE7\xBA\xA7\xE6\x89\x8D\xE8\x83\xBD\xE4\xBD\xBF\xE7\x94\xA8\xE3\x80\x82");
                         return;
                     }
 
@@ -310,7 +310,15 @@ void WorldSession::HandleChatMessageOpcode(WorldPackets::Chat::ChatMessage const
                         }
                     }
 
-                    chn->Say(playerPointer->GetObjectGuid(), packet.message.c_str(), packet.lang);
+					if (chn->GetName() == "\xE4\xB8\x96\xE7\x95\x8C")
+					{
+						ChannelMgr::AnnounceBothFactionsChannel("\xE4\xB8\x96\xE7\x95\x8C", playerPointer->GetObjectGuid(), packet.message.c_str());
+					}
+					else
+					{
+						chn->Say(playerPointer->GetObjectGuid(), packet.message.c_str(), packet.lang);
+					}
+
                     SetLastPubChanMsgTime(time(nullptr));
 
                     if (packet.lang != LANG_ADDON && chn->HasFlag(Channel::ChannelFlags::CHANNEL_FLAG_GENERAL))

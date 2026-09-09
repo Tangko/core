@@ -484,7 +484,7 @@ void World::LoadConfigSettings(bool reload)
 
     // Read the player limit and the Message of the day from the config file
     SetPlayerLimit(sConfig.GetIntDefault("PlayerLimit", DEFAULT_PLAYER_LIMIT), true);
-    SetMotd(sConfig.GetStringDefault("Motd", "Welcome to the Massive Network Game Object Server.") + std::string("\n") + std::string(GetPatchName()) + std::string(" is now live!"));
+    SetMotd(sConfig.GetStringDefault("Motd", "Welcome to the Massive Network Game Object Server.") + std::string("\n") + std::string(GetPatchName()) + std::string("\xE5\xB7\xB2\xE4\xB8\x8A\xE7\xBA\xBF\xEF\xBC\x81"));
 
     // Read all rates from the config file
     setConfigPos(CONFIG_FLOAT_RATE_HEALTH,               "Rate.Health", 1.0f);
@@ -1273,28 +1273,28 @@ char const* World::GetPatchName() const
 {
     switch(GetWowPatch())
     {
-        case 0:
-            return "Patch 1.2: Mysteries of Maraudon";
-        case 1:
-            return "Patch 1.3: Ruins of the Dire Maul";
-        case 2:
-            return "Patch 1.4: The Call to War";
-        case 3:
-            return "Patch 1.5: Battlegrounds";
-        case 4:
-            return "Patch 1.6: Assault on Blackwing Lair";
-        case 5:
-            return "Patch 1.7: Rise of the Blood God";
-        case 6:
-            return "Patch 1.8: Dragons of Nightmare";
-        case 7:
-            return "Patch 1.9: The Gates of Ahn'Qiraj";
-        case 8:
-            return "Patch 1.10: Storms of Azeroth";
-        case 9:
-            return "Patch 1.11: Shadow of the Necropolis";
-        case 10:
-            return "Patch 1.12: Drums of War";
+	case 0:
+		return "Patch 1.2: \xE7\x8E\x9B\xE6\x8B\x89\xE9\xA1\xBF\xE4\xB9\x8B\xE8\xB0\x9C";
+	case 1:
+		return "Patch 1.3: \xE5\x8E\x84\xE8\xBF\x90\xE4\xB9\x8B\xE6\xA7\x8C\xE5\xBA\x9F\xE5\xA2\x9F";
+	case 2:
+		return "Patch 1.4: \xE6\x88\x98\xE4\xBA\x89\xE7\x9A\x84\xE5\x8F\xAC\xE5\x94\xA4";
+	case 3:
+		return "Patch 1.5: \xE6\x88\x98\xE5\x9C\xBA";
+	case 4:
+		return "Patch 1.6: \xE8\xBF\x9B\xE5\x86\x9B\xE9\xBB\x91\xE7\xBF\xBC\xE4\xB9\x8B\xE5\xB7\xA2";
+	case 5:
+		return "Patch 1.7: \xE8\xA1\x80\xE7\xA5\x9E\xE7\x9A\x84\xE5\xA4\x8D\xE8\x8B\x8F";
+	case 6:
+		return "Patch 1.8: \xE6\xA2\xA6\xE5\x99\xA9\xE4\xB9\x8B\xE9\xBE\x99";
+	case 7:
+		return "Patch 1.9: \xE5\xAE\x89\xE5\x85\xB6\xE6\x8B\x89\xE4\xB9\x8B\xE9\x97\xA8";
+	case 8:
+		return "Patch 1.10: \xE8\x89\xBE\xE6\xB3\xBD\xE6\x8B\x89\xE6\x96\xAF\xE9\xA3\x8E\xE6\x9A\xB4";
+	case 9:
+		return "Patch 1.11: \xE7\xBA\xB3\xE5\x85\x8B\xE8\x90\xA8\xE7\x8E\x9B\xE6\x96\xAF\xE4\xB9\x8B\xE5\xBD\xB1";
+	case 10:
+		return "Patch 1.12: \xE6\x88\x98\xE9\xBC\x93\xE9\x9C\x87\xE5\xA4\xA9";
     }
 
     return "Invalid Patch!";

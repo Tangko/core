@@ -130,9 +130,8 @@ void ChannelMgr::CreateDefaultChannels()
 
 void ChannelMgr::AnnounceBothFactionsChannel(std::string const& channelName, ObjectGuid playerGuid, char const* message)
 {
-    if (Channel* c = channelMgr(HORDE)->GetJoinChannel(channelName))
-        c->Say(playerGuid, message, LANG_UNIVERSAL, true);
-    if (!sWorld.getConfig(CONFIG_BOOL_ALLOW_TWO_SIDE_INTERACTION_CHANNEL))
-        if (Channel* c = channelMgr(ALLIANCE)->GetJoinChannel(channelName))
-            c->Say(playerGuid, message, LANG_UNIVERSAL, true);
+	if (Channel* c = channelMgr(HORDE)->GetJoinChannel(channelName))
+		c->Say(playerGuid, message, LANG_UNIVERSAL, true);
+	if (Channel* c = channelMgr(ALLIANCE)->GetJoinChannel(channelName))
+		c->Say(playerGuid, message, LANG_UNIVERSAL, true);
 }
