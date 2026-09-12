@@ -46,6 +46,8 @@
 #include "Chat.h"
 #include "DBCStores.h"
 #include "MassMailMgr.h"
+#include "Mail.h"
+#include "Item.h"
 #include "LootMgr.h"
 #include "ItemEnchantmentMgr.h"
 #include "MapManager.h"
@@ -1997,8 +1999,63 @@ void World::Update(uint32 diff)
     // Update the game time and check for shutdown time
     _UpdateGameTime();
 
-    // Update mass mailer tasks if any
-    sMassMailMgr.Update();
+	// Update mass mailer tasks if any
+	sMassMailMgr.Update();
+
+	// ========== 招募奖励邮件发送（每10秒检查一次）==========
+	static uint32 recruitRewardTimer = 0;
+	recruitRewardTimer += diff;
+	if (recruitRewardTimer >= 10000) {
+		recruitRewardTimer = 0;
+
+		std::unique_ptr<QueryResult> result(LoginDatabase.PQuery(
+			"SELECT id, claimed_character FROM recruit_rewards "
+			"WHERE status = 'claimed' AND sent_at IS NULL LIMIT 10"));
+
+		if (result) {
+			do {
+				Field* fields = result->Fetch();
+				uint32 rewardId = fields[0].GetUInt32();
+				std::string charName = fields[1].GetString();
+
+				ObjectGuid charGuid;
+				std::unique_ptr<QueryResult> charResult(CharacterDatabase.PQuery(
+					"SELECT guid FROM characters WHERE name = '%s'",
+					charName.c_str()));
+
+				if (charResult) {
+					uint32 guidLow = charResult->Fetch()[0].GetUInt32();
+					charGuid = ObjectGuid(HIGHGUID_PLAYER, guidLow);
+				}
+
+				if (!charGuid.IsEmpty()) {
+					uint32 mountId = 25;  // TODO: 随机坐骑
+
+					MailDraft draft(
+						"\xE6\x88\x98\xE5\x8F\x8B\xE6\x8B\x9B\xE5\x8B\x9F\xE5\xA5\x96\xE5\x8A\xB1",
+						"\xE6\x81\xAD\xE5\x96\x9C\xE6\x82\xA8\xE5\xAE\x8C\xE6\x88\x90\xE6\x88\x98\xE5\x8F\x8B\xE6\x8B\x9B\xE5\x8B\x9F\xEF\xBC\x81");
+
+					Item* item = Item::CreateItem(mountId, 1, charGuid);
+					if (item) {
+						draft.AddItem(item);
+						draft.SendMailTo(MailReceiver(charGuid),
+							MailSender(MAIL_NORMAL, uint32(0), MAIL_STATIONERY_GM),
+							MAIL_CHECK_MASK_COPIED, 0, 2592000);  // 30 天 = 2592000 秒
+					}
+
+					LoginDatabase.PExecute(
+						"UPDATE recruit_rewards SET status = 'sent', sent_at = NOW() "
+						"WHERE id = %u", rewardId);
+				}
+				else {
+					LoginDatabase.PExecute(
+						"UPDATE recruit_rewards SET status = 'failed' WHERE id = %u",
+						rewardId);
+				}
+			} while (result->NextRow());
+		}
+	}
+	// ========== 招募奖励邮件发送结束 ==========
 
 	// 定时踢出时间用尽的玩家（每60秒检查一次）
 	static uint32 timeCheckTimer = 0;

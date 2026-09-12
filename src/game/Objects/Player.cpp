@@ -3269,9 +3269,40 @@ void Player::GiveLevel(uint32 level)
     SetPower(POWER_FOCUS, 0);
     SetPower(POWER_HAPPINESS, 0);
 
-    // update level to hunter/summon pet
-    if (Pet* pet = GetPet())
-        pet->SynchronizeLevelWithOwner();
+	// update level to hunter/summon pet
+	if (Pet* pet = GetPet())
+		pet->SynchronizeLevelWithOwner();
+
+	// ========== ÕÐÄ¼½±Àø¼ì²é ==========
+	if (level == 60) {
+		std::string accountName = GetSession()->GetUsername();
+		std::transform(accountName.begin(), accountName.end(), accountName.begin(), ::toupper);
+
+		std::unique_ptr<QueryResult> result(LoginDatabase.PQuery(
+			"SELECT id, inviter FROM invite_records "
+			"WHERE invitee = '%s' AND level60_rewarded = 0",
+			accountName.c_str()));
+
+		if (result) {
+			Field* fields = result->Fetch();
+			uint32 recordId = fields[0].GetUInt32();
+			std::string inviter = fields[1].GetString();
+
+			LoginDatabase.PExecute(
+				"UPDATE invite_records SET level60_rewarded = 1, "
+				"level60_rewarded_time = %lld WHERE id = %u",
+				(long long)time(nullptr), recordId);
+
+			LoginDatabase.PExecute(
+				"INSERT INTO recruit_rewards (invite_record_id, account_name) "
+				"VALUES (%u, '%s')", recordId, inviter.c_str());
+
+			LoginDatabase.PExecute(
+				"INSERT INTO recruit_rewards (invite_record_id, account_name) "
+				"VALUES (%u, '%s')", recordId, accountName.c_str());
+		}
+	}
+	// ========== ÕÐÄ¼½±Àø¼ì²é½áÊø ==========
 }
 
 void Player::UpdateFreeTalentPoints(bool resetIfNeed)
