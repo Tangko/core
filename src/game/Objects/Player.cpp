@@ -3293,13 +3293,14 @@ void Player::GiveLevel(uint32 level)
 				"level60_rewarded_time = %lld WHERE id = %u",
 				(long long)time(nullptr), recordId);
 
+			// ×øÆï½±Àø
 			LoginDatabase.PExecute(
-				"INSERT INTO recruit_rewards (invite_record_id, account_name) "
-				"VALUES (%u, '%s')", recordId, inviter.c_str());
+				"INSERT INTO recruit_rewards (invite_record_id, account_name, reward_type) "
+				"VALUES (%u, '%s', 'LEVEL60_MOUNT')", recordId, inviter.c_str());
 
 			LoginDatabase.PExecute(
-				"INSERT INTO recruit_rewards (invite_record_id, account_name) "
-				"VALUES (%u, '%s')", recordId, accountName.c_str());
+				"INSERT INTO recruit_rewards (invite_record_id, account_name, reward_type) "
+				"VALUES (%u, '%s', 'LEVEL60_MOUNT')", recordId, accountName.c_str());
 		}
 	}
 	// ========== ÕÐÄ¼½±Àø¼ì²é½áÊø ==========

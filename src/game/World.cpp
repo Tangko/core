@@ -2009,7 +2009,7 @@ void World::Update(uint32 diff)
 		recruitRewardTimer = 0;
 
 		std::unique_ptr<QueryResult> result(LoginDatabase.PQuery(
-			"SELECT id, claimed_character FROM recruit_rewards "
+			"SELECT id, claimed_character, reward_type FROM recruit_rewards "
 			"WHERE status = 'claimed' AND sent_at IS NULL LIMIT 10"));
 
 		if (result) {
@@ -2017,6 +2017,7 @@ void World::Update(uint32 diff)
 				Field* fields = result->Fetch();
 				uint32 rewardId = fields[0].GetUInt32();
 				std::string charName = fields[1].GetString();
+				std::string rewardType = fields[2].GetString();
 
 				ObjectGuid charGuid;
 				std::unique_ptr<QueryResult> charResult(CharacterDatabase.PQuery(
@@ -2029,18 +2030,29 @@ void World::Update(uint32 diff)
 				}
 
 				if (!charGuid.IsEmpty()) {
-					uint32 mountId = 25;  // TODO: 随机坐骑
+					uint32 itemId = 25;
+					std::string mailSubject = "\xE6\x88\x98\xE5\x8F\x8B\xE6\x8B\x9B\xE5\x8B\x9F\xE5\xA5\x96\xE5\x8A\xB1";
+					std::string mailBody;
 
-					MailDraft draft(
-						"\xE6\x88\x98\xE5\x8F\x8B\xE6\x8B\x9B\xE5\x8B\x9F\xE5\xA5\x96\xE5\x8A\xB1",
-						"\xE6\x81\xAD\xE5\x96\x9C\xE6\x82\xA8\xE5\xAE\x8C\xE6\x88\x90\xE6\x88\x98\xE5\x8F\x8B\xE6\x8B\x9B\xE5\x8B\x9F\xEF\xBC\x81");
+					if (rewardType == "RECRUIT_BAG") {
+						itemId = 1725;
+						mailBody = "\xE6\x81\xAD\xE5\x96\x9C\xE6\x82\xA8\xE5\xBB\xBA\xE7\xAB\x8B\xE6\x88\x98\xE5\x8F\x8B\xE6\x8B\x9B\xE5\x8B\x9F\xE5\x85\xB3\xE7\xB3\xBB\xEF\xBC\x81";
+					}
+					else if (rewardType == "LEVEL60_MOUNT") {
+						itemId = 26007;
+						mailBody = "\xE6\x81\xAD\xE5\x96\x9C\xE6\x82\xA8\xE7\x9A\x84\xE6\x88\x98\xE5\x8F\x8B\xE5\x88\xB0\xE8\xBE\xBE 60 \xE7\xBA\xA7\xEF\xBC\x81";
+					}
+					else {
+						mailBody = "\xE6\x81\xAD\xE5\x96\x9C\xE6\x82\xA8\xE5\xAE\x8C\xE6\x88\x90\xE6\x88\x98\xE5\x8F\x8B\xE6\x8B\x9B\xE5\x8B\x9F\xEF\xBC\x81";
+					}
 
-					Item* item = Item::CreateItem(mountId, 1, charGuid);
+					MailDraft draft(mailSubject, mailBody);
+					Item* item = Item::CreateItem(itemId, 1, charGuid);
 					if (item) {
 						draft.AddItem(item);
 						draft.SendMailTo(MailReceiver(charGuid),
 							MailSender(MAIL_NORMAL, uint32(0), MAIL_STATIONERY_GM),
-							MAIL_CHECK_MASK_COPIED, 0, 2592000);  // 30 天 = 2592000 秒
+							MAIL_CHECK_MASK_COPIED, 0, 2592000);
 					}
 
 					LoginDatabase.PExecute(
