@@ -7666,11 +7666,11 @@ void Player::SendLootRelease(ObjectGuid guid) const
 
 void Player::SendLootError(ObjectGuid guid, LootError error) const
 {
-    WorldPacket data(SMSG_LOOT_RESPONSE, 10);
-    data << uint64(guid);
-    data << uint8(0);
-    data << uint8(error);
-    SendDirectMessage(&data);
+    auto packet = std::make_unique<WorldPackets::Loot::LootResponse>();
+    packet->lootedGuid = guid;
+    packet->lootType = 0;
+    packet->lootError = error;
+    GetSession()->SendPacket(std::move(packet));
 }
 
 void Player::SendLoot(ObjectGuid guid, LootType lootType, Player const* pVictim)
@@ -8063,11 +8063,11 @@ void Player::SendLoot(ObjectGuid guid, LootType lootType, Player const* pVictim)
             break;
     }
 
-    WorldPacket data(SMSG_LOOT_RESPONSE, (9 + 50));         // we guess size
-    data << ObjectGuid(guid);
-    data << uint8(lootType);
-    data << LootView(*loot, this, permission);
-    SendDirectMessage(&data);
+    auto packet = std::make_unique<WorldPackets::Loot::LootResponse>();
+    packet->lootedGuid = guid;
+    packet->lootType = lootType;
+    LootView(*loot, this, permission).WriteLoot(*packet);
+    GetSession()->SendPacket(std::move(packet));
 
     // add 'this' player as one of the players that are looting 'loot'
     if (permission != NONE_PERMISSION)
@@ -8105,7 +8105,7 @@ void Player::SendUpdateWorldState(uint32 state, uint32 value) const
 }
 
 // TODO: Determine what these values mean, if anything.
-static WorldStatePair def_world_states[] =
+static std::pair<uint32, int32> const def_world_states[] =
 {
     { 0x07AE, 0x01 },
     { 0x0532, 0x01 },
@@ -8226,16 +8226,9 @@ void Player::SendInitWorldStates(uint32 zoneid) const
 
     sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "Sending SMSG_INIT_WORLD_STATES to Map:%u, Zone: %u", mapId, zoneid);
 
-    uint32 count = 1; // count of world states in packet, 1 extra for the terminator
-
-    WorldPacket data(SMSG_INIT_WORLD_STATES, (4 + 4 + 2 + 6));
-    data << uint32(mapId);                              // map id
-#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_11_2
-    data << uint32(zoneid);                             // zone id
-#endif
-
-    size_t countPos = data.wpos();
-    data << uint16(0);                                  // count of uint32 blocks, placeholder
+    auto packet = std::make_unique<WorldPackets::Misc::InitWorldStates>();
+    packet->mapId = mapId;
+    packet->zoneId = zoneid;
 
     // Scourge Invasion - Patch 1.11
     if (sGameEventMgr.IsActiveEvent(GAME_EVENT_SCOURGE_INVASION))
@@ -8248,52 +8241,43 @@ void Player::SendInitWorldStates(uint32 zoneid) const
         int remainingTanaris = sObjectMgr.GetSavedVariable(VARIABLE_SI_TANARIS_REMAINING);
         int remainingWinterspring = sObjectMgr.GetSavedVariable(VARIABLE_SI_WINTERSPRING_REMAINING);
 
-        WriteInitialWorldStatePair(data, WS_SI_AZSHARA_INVADED,             remainingAzshara > 0 ? 1 : 0);
-        WriteInitialWorldStatePair(data, WS_SI_BLASTED_LANDS_INVADED,       remainingBlastedLands > 0 ? 1 : 0);
-        WriteInitialWorldStatePair(data, WS_SI_BURNING_STEPPES_INVADED,     remainingBurningSteppes > 0 ? 1 : 0);
-        WriteInitialWorldStatePair(data, WS_SI_EASTERN_PLAGUELANDS_INVADED, remainingEasternPlaguelands > 0 ? 1 : 0);
-        WriteInitialWorldStatePair(data, WS_SI_TANARIS_INVADED,             remainingTanaris > 0 ? 1 : 0);
-        WriteInitialWorldStatePair(data, WS_SI_WINTERSPRING_INVADED,        remainingWinterspring > 0 ? 1 : 0);
+        packet->AddWorldState(WS_SI_AZSHARA_INVADED,             remainingAzshara > 0 ? 1 : 0);
+        packet->AddWorldState(WS_SI_BLASTED_LANDS_INVADED,       remainingBlastedLands > 0 ? 1 : 0);
+        packet->AddWorldState(WS_SI_BURNING_STEPPES_INVADED,     remainingBurningSteppes > 0 ? 1 : 0);
+        packet->AddWorldState(WS_SI_EASTERN_PLAGUELANDS_INVADED, remainingEasternPlaguelands > 0 ? 1 : 0);
+        packet->AddWorldState(WS_SI_TANARIS_INVADED,             remainingTanaris > 0 ? 1 : 0);
+        packet->AddWorldState(WS_SI_WINTERSPRING_INVADED,        remainingWinterspring > 0 ? 1 : 0);
 
         // Battles & remaining necropolisses
-        WriteInitialWorldStatePair(data, WS_SI_BATTLES_WON,               victories);
-        WriteInitialWorldStatePair(data, WS_SI_AZSHARA_REMAINING,         remainingAzshara);
-        WriteInitialWorldStatePair(data, WS_SI_BLASTED_LANDS_REMAINING,   remainingBlastedLands);
-        WriteInitialWorldStatePair(data, WS_SI_BURNING_STEPPES_REMAINING, remainingBurningSteppes);
-        WriteInitialWorldStatePair(data, WS_SI_PLAGUELANDS_REMAINING,     remainingEasternPlaguelands);
-        WriteInitialWorldStatePair(data, WS_SI_TANARIS_REMAINING,         remainingTanaris);
-        WriteInitialWorldStatePair(data, WS_SI_WINTERSPRING_REMAINING,    remainingWinterspring);
-
-        count += 13;
+        packet->AddWorldState(WS_SI_BATTLES_WON,               victories);
+        packet->AddWorldState(WS_SI_AZSHARA_REMAINING,         remainingAzshara);
+        packet->AddWorldState(WS_SI_BLASTED_LANDS_REMAINING,   remainingBlastedLands);
+        packet->AddWorldState(WS_SI_BURNING_STEPPES_REMAINING, remainingBurningSteppes);
+        packet->AddWorldState(WS_SI_PLAGUELANDS_REMAINING,     remainingEasternPlaguelands);
+        packet->AddWorldState(WS_SI_TANARIS_REMAINING,         remainingTanaris);
+        packet->AddWorldState(WS_SI_WINTERSPRING_REMAINING,    remainingWinterspring);
     }
 
-    for (WorldStatePair const* itr = def_world_states; itr->state; ++itr)
-    {
-        WriteInitialWorldStatePair(data, itr->state, itr->value);
-        ++count;
-    }
+    for (auto const& itr : def_world_states)
+        packet->AddWorldState(itr.first, itr.second);
 
     if (ZoneScript* zoneScript = GetZoneScript())
-        count += zoneScript->FillInitialWorldStates(data);
+        zoneScript->FillInitialWorldStates(packet->states);
     switch (zoneid)
     {
         case 2597:                                      // AV
         case 3277:                                      // WS
         case 3358:                                      // AB
             if (BattleGround* bg = GetBattleGround())
-                bg->FillInitialWorldStates(data, count);
+                bg->FillInitialWorldStates(packet->states);
             break;
     }
 
     // Ahn'Qiraj War Effort
     if (sGameEventMgr.IsActiveEvent(EVENT_WAR_EFFORT))
-    {
-        count += BuildWarEffortWorldStates(data);
-    }
+        BuildWarEffortWorldStates(packet->states);
 
-    data << uint32(0) << uint32(0);     // [-ZERO] Add terminator to prevent repeating audio bug.
-    data.put<uint16>(countPos, count);  // set actual world state amount
-    GetSession()->SendPacket(&data);
+    GetSession()->SendPacket(std::move(packet));
 }
 
 uint32 Player::GetXPRestBonus(uint32 xp)
@@ -16122,20 +16106,15 @@ DungeonPersistentState* Player::GetBoundInstanceSaveForSelfOrGroup(uint32 mapId)
 
 void Player::SendRaidInfo() const
 {
-    uint32 counter = 0;
-
-    WorldPacket data(SMSG_RAID_INSTANCE_INFO, 4);
-
-    size_t p_counter = data.wpos();
-    data << uint32(counter);                                // placeholder
-
+    auto packet = std::make_unique<WorldPackets::Instance::RaidInstanceInfo>();
     std::lock_guard<std::mutex> guard(m_boundInstancesMutex);
     for (const auto& itr : m_boundInstances)
     {
         if (itr.second.perm)
         {
             DungeonPersistentState* state = itr.second.state;
-            data << uint32(state->GetMapId());              // map id
+            WorldPackets::Instance::RaidInstanceInfo::InstanceResetInfo info;
+            info.mapId = state->GetMapId();
 
             // Permanent dungeons (raids) don't have a valid reset timer since it's
             // on a schedule. Send the scheduled time instead of state reset time.
@@ -16143,15 +16122,12 @@ void Player::SendRaidInfo() const
             time_t resetTime = DungeonResetScheduler::IsRaidResetSchedulingGlobal()
                 ? sMapPersistentStateMgr.GetScheduler().GetResetTimeFor(state->GetMapId())
                 : state->GetResetTime();
-            data << uint32(resetTime - time(nullptr));
-            data << uint32(state->GetInstanceId());         // instance id
-
-            counter++;
+            info.resetTime = uint32(resetTime - time(nullptr));
+            info.instanceId = state->GetInstanceId();
+            packet->resetInfos.push_back(info);
         }
     }
-
-    data.put<uint32>(p_counter, counter);
-    GetSession()->SendPacket(&data);
+    GetSession()->SendPacket(std::move(packet));
 }
 
 /*
@@ -16174,7 +16150,7 @@ void Player::SendSavedInstances() const
 
     //Send opcode 811. true or false means, whether you have current raid instances
     {
-        auto packet = std::make_unique<WorldPackets::Misc::UpdateInstanceOwnership>();
+        auto packet = std::make_unique<WorldPackets::Instance::UpdateInstanceOwnership>();
         packet->hasBeenSaved = hasBeenSaved;
         GetSession()->SendPacket(std::move(packet));
     }
@@ -16186,7 +16162,7 @@ void Player::SendSavedInstances() const
     {
         if (itr.second.perm)
         {
-            auto packet = std::make_unique<WorldPackets::Misc::UpdateLastInstance>();
+            auto packet = std::make_unique<WorldPackets::Instance::UpdateLastInstance>();
             packet->mapId = itr.second.state->GetMapId();
             GetSession()->SendPacket(std::move(packet));
         }
@@ -17322,7 +17298,7 @@ void Player::ResetPersonalInstanceOnLeaveDungeon(uint32 mapId)
 void Player::SendResetInstanceSuccess(uint32 mapId) const
 {
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_10_2
-    auto packet = std::make_unique<WorldPackets::Misc::InstanceReset>();
+    auto packet = std::make_unique<WorldPackets::Instance::InstanceReset>();
     packet->mapId = mapId;
     GetSession()->SendPacket(std::move(packet));
 #endif
@@ -17332,7 +17308,7 @@ void Player::SendResetInstanceFailed(uint32 reason, uint32 mapId) const
 {
 #if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_10_2
     // reason: see enum InstanceResetFailReason
-    auto packet = std::make_unique<WorldPackets::Misc::InstanceResetFailed>();
+    auto packet = std::make_unique<WorldPackets::Instance::InstanceResetFailed>();
     packet->reason = reason;
     packet->mapId = mapId;
     GetSession()->SendPacket(std::move(packet));
@@ -19385,7 +19361,7 @@ void Player::SendInstanceResetWarning(uint32 mapId, uint32 resetTime) const
         type = RAID_INSTANCE_WARNING_MIN;
     else
         type = RAID_INSTANCE_WARNING_MIN_SOON;
-    auto packet = std::make_unique<WorldPackets::Misc::RaidInstanceMessage>();
+    auto packet = std::make_unique<WorldPackets::Instance::RaidInstanceMessage>();
     packet->messageType = type;
     packet->mapId = mapId;
     packet->resetTime = resetTime;
