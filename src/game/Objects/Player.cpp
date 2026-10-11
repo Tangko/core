@@ -3039,11 +3039,17 @@ void Player::GiveXP(uint32 xp, Unit const* victim)
         xp /= 2;
 #endif
 
-    if (GetPersonalXpRate() >= 0.0f)
-        xp *= GetPersonalXpRate();
+	if (GetPersonalXpRate() >= 0.0f)
+		xp *= GetPersonalXpRate();
 
-    if (xp < 1)
-        return;
+	// ========== 双倍经验 BUFF ==========
+	if (HasAura(34006)) {
+		xp *= 2;
+	}
+	// ========== 双倍经验 BUFF 结束 ==========
+
+	if (xp < 1)
+		return;
 
     if (!IsAlive())
         return;
@@ -3236,6 +3242,12 @@ void Player::GiveLevel(uint32 level)
 	// update level to hunter/summon pet
 	if (Pet* pet = GetPet())
 		pet->SynchronizeLevelWithOwner();
+
+	// ========== 满 60 级移除双倍经验 BUFF ==========
+	if (level >= 60 && HasAura(34006)) {
+		RemoveAurasDueToSpell(34006);
+	}
+	// ========== 满 60 级移除双倍经验 BUFF 结束 ==========
 
 	// ========== 招募奖励检查 ==========
 	if (level == 60) {
@@ -15292,7 +15304,39 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder* holder)
     if (sWorld.GetWowPatch() >= WOW_PATCH_112 && !HasCharacterFlag(CHARACTER_FLAG_MOUNT_UPGRADED))
         UpdateOldRidingSkillToNew(hasEpicMount);
 
-    return true;
+	// ========== 双倍经验 BUFF（小号奖励 + 战友招募） ==========
+	if (GetLevel() < 60)
+	{
+		// 条件 1：账户有 60 级角色
+		auto result1 = CharacterDatabase.PQuery(
+			"SELECT guid FROM characters WHERE account = %u AND level = 60 LIMIT 1",
+			GetSession()->GetAccountId()
+		);
+		bool has60 = (result1 != nullptr);
+
+		// 条件 2：招募奖励已领取
+		auto result2 = LoginDatabase.PQuery(
+			"SELECT id FROM recruit_rewards "
+			"WHERE claimed_character = '%s' "
+			"AND reward_type = 'RECRUIT_BAG' "
+			"AND status IN ('claimed', 'sent') LIMIT 1",
+			GetName()
+		);
+		bool hasRecruit = (result2 != nullptr);
+
+		// 满足任意一个条件就加 BUFF
+		bool shouldHaveBuff = has60 || hasRecruit;
+
+		if (shouldHaveBuff && !HasAura(34006)) {
+			AddAura(34006, EFFECT_INDEX_0, this);
+		}
+		else if (!shouldHaveBuff && HasAura(34006)) {
+			RemoveAurasDueToSpell(34006);
+		}
+	}
+	// ========== 双倍经验 BUFF 结束 ==========
+
+	return true;
 }
 
 // The new riding skills (Apprentice/Journeyman) were added in patch 1.12.

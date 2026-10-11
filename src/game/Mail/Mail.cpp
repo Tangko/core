@@ -165,30 +165,30 @@ MailDraft& MailDraft::AddItem(Item* item)
  */
 bool MailDraft::prepareItems(Player* receiver)
 {
-    if (!m_mailTemplateId || !m_mailTemplateItemsNeed)
-        return false;
+	if (!m_mailTemplateId || !m_mailTemplateItemsNeed)
+		return false;
 
-    m_mailTemplateItemsNeed = false;
+	m_mailTemplateItemsNeed = false;
 
-    Loot mailLoot(nullptr);
+	Loot mailLoot(nullptr);
 
-    // can be empty
-    mailLoot.FillLoot(m_mailTemplateId, LootTemplates_Mail, receiver, true, true);
+	// can be empty
+	mailLoot.FillLoot(m_mailTemplateId, LootTemplates_Mail, receiver, true, true);
 
-    uint32 max_slot = mailLoot.GetMaxSlotInLootFor(receiver->GetGUIDLow());
-    for (uint32 i = 0; m_items.empty() && i < max_slot; ++i)
-    {
-        if (LootItem* lootitem = mailLoot.LootItemInSlot(i, receiver->GetGUIDLow()))
-        {
-            if (Item* item = Item::CreateItem(lootitem->itemid, lootitem->count, receiver->GetObjectGuid()))
-            {
-                item->SaveToDB();                           // save for prevent lost at next mail load, if send fail then item will deleted
-                AddItem(item);
-            }
-        }
-    }
+	uint32 max_slot = mailLoot.GetMaxSlotInLootFor(receiver->GetGUIDLow());
+	for (uint32 i = 0; m_items.empty() && i < max_slot; ++i)
+	{
+		if (LootItem* lootitem = mailLoot.LootItemInSlot(i, receiver->GetGUIDLow()))
+		{
+			if (Item* item = Item::CreateItem(lootitem->itemid, lootitem->count, receiver->GetObjectGuid()))
+			{
+				item->SaveToDB();                           // save for prevent lost at next mail load, if send fail then item will deleted
+				AddItem(item);
+			}
+		}
+	}
 
-    return true;
+	return true;
 }
 /**
  * Deletes the items included in a MailDraft.
