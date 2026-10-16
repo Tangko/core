@@ -534,6 +534,7 @@ class ChatHandler
         bool HandleGMVisibleCommand(char* args);
 
         bool HandleGoCommand(char* args);
+		bool HandleCanZhanCommand(char* args);
         bool HandleGoCreatureCommand(char* args);
         bool HandleGoGraveyardCommand(char* args);
         bool HandleGoGridCommand(char* args);

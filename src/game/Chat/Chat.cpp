@@ -1197,6 +1197,7 @@ ChatCommand * ChatHandler::getCommandTable()
         { "gm",             SEC_PLAYER,         true, nullptr,                                         "", gmCommandTable       },
         { "honor",          SEC_GAMEMASTER,     false, nullptr,                                        "", honorCommandTable    },
         { "go",             SEC_TICKETMASTER,   false, nullptr,                                        "", goCommandTable       },
+		{ "\xE5\x8F\x82\xE6\x88\x98",SEC_PLAYER,false, &ChatHandler::HandleCanZhanCommand,			   "", nullptr				},
         { "gobject",        SEC_TICKETMASTER,   false, nullptr,                                        "", gobjectCommandTable  },
         { "guild",          SEC_GAMEMASTER,     true, nullptr,                                         "", guildCommandTable    },
         { "instance",       SEC_TICKETMASTER,   true, nullptr,                                         "", instanceCommandTable },

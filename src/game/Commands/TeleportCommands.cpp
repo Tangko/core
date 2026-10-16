@@ -24,6 +24,7 @@
 #include "ObjectMgr.h"
 #include "MapManager.h"
 #include "Util.h"
+#include "ArrowRecord.h"
 
 bool ChatHandler::HandleTeleCommand(char* args)
 {
@@ -1363,4 +1364,27 @@ bool ChatHandler::HandleGocorpseCommand(char* args)
     float z = corpse->GetPositionZ();
 
     return HandleGoHelper(m_session->GetPlayer(), corpse->GetMapId(), x, y, &z, nullptr);
+}
+
+bool ChatHandler::HandleCanZhanCommand(char* /*args*/)
+{
+	Player* player = m_session->GetPlayer();
+	if (!player)
+		return false;
+
+	uint32 team = player->GetTeamId();
+	if (team > 1)
+		return false;
+
+	ArrowRecord& rec = g_arrowRecords[team];
+	if (!rec.active || time(nullptr) >= rec.expireTime)
+	{
+		SendSysMessage("\xE6\x97\xA0\xE6\xB3\x95\xE5\x93\x8D\xE5\xBA\x94\xE5\x8F\xB7\xE5\x8F\xAC");
+		rec.active = false;
+		return true;
+	}
+
+	player->TeleportTo(rec.mapId, rec.x, rec.y, rec.z, rec.o);
+	SendSysMessage("\xE5\xB7\xB2\xE5\x93\x8D\xE5\xBA\x94\xE5\x8F\xB7\xE5\x8F\xAC");
+	return true;
 }

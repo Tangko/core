@@ -242,6 +242,7 @@ set (SCRIPTS_SRCS
 	spells/spell_cola_level_up.cpp
 	spells/spell_cola_add_time.cpp
 	spells/spell_cola_drink.cpp
+	spells/spell_chuanyunjian.cpp
     world/areatrigger_scripts.cpp
     world/elemental_invasions.cpp
     world/fireworks_show.cpp
