@@ -54,6 +54,8 @@ using namespace Spells;
 #define SPELL_CHANNEL_VISUAL_TIMER 800
 
 extern pEffect SpellEffects[TOTAL_SPELL_EFFECTS];
+extern bool HasHunterDruidTeam(uint32 playerGuid);
+extern void HunterDruidTransform(Player* player);
 
 Spell::Spell(Unit* caster, SpellEntry const* info, bool triggered, ObjectGuid originalCasterGUID, SpellEntry const* triggeredBy, Unit* victim, SpellEntry const* triggeredByParent):
     m_spellInfo(info), m_triggeredBySpellInfo(triggeredBy), m_triggeredByParentSpellInfo(triggeredByParent), m_caster(caster), m_casterUnit(caster), m_IsTriggeredSpell(triggered)
@@ -4328,6 +4330,16 @@ void Spell::finish(bool ok)
         return;
 
     m_spellState = SPELL_STATE_FINISHED;
+
+	// 加：34000 引导成功时变身
+	if (m_spellInfo->Id == 34000 && ok)
+	{
+		Player* player = m_caster->ToPlayer();
+		if (player && HasHunterDruidTeam(player->GetGUIDLow()))
+		{
+			HunterDruidTransform(player);
+		}
+	}
 
     // Clear the creature's casting target so it faces victim
     if (m_setCreatureTarget)

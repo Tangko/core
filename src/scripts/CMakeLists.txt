@@ -237,12 +237,12 @@ set (SCRIPTS_SRCS
     spells/spell_special.cpp
     spells/spell_warlock.cpp
     spells/spell_warrior.cpp
-	spells/spell_pet_transform.cpp
 	spells/spell_pet_swap.cpp
 	spells/spell_cola_level_up.cpp
 	spells/spell_cola_add_time.cpp
 	spells/spell_cola_drink.cpp
 	spells/spell_chuanyunjian.cpp
+	spells/spell_hunter_druid.cpp
     world/areatrigger_scripts.cpp
     world/elemental_invasions.cpp
     world/fireworks_show.cpp
