@@ -50,10 +50,11 @@ GroupMemberStatus GetGroupMemberStatus(Player const* member = nullptr)
         flags |= MEMBER_STATUS_ONLINE;
         if (member->IsPvP())
             flags |= MEMBER_STATUS_PVP;
-        if (member->IsDead())
-            flags |= MEMBER_STATUS_DEAD;
+        // a released member keeps the corpse death state, but it is a ghost, not dead
         if (member->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST))
             flags |= MEMBER_STATUS_GHOST;
+        else if (member->IsDead())
+            flags |= MEMBER_STATUS_DEAD;
         if (member->IsFFAPvP())
             flags |= MEMBER_STATUS_PVP_FFA;
         if (member->IsAFK())
@@ -946,6 +947,9 @@ bool Group::CountRollVote(ObjectGuid const& playerGUID, Rolls::iterator& rollI, 
     // this condition means that player joins to the party after roll begins
     if (itr == roll->playerVote.end())
         return true;                                        // result used for need iterator ++, so avoid for end of list
+
+    if (itr->second != ROLL_NOT_EMITED_YET)
+        return false;   // player already rolled for this loot!
 
     if (Loot* pLoot = roll->getLoot())
         if (pLoot->items.empty())

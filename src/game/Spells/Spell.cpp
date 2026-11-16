@@ -3490,19 +3490,15 @@ SpellCastResult Spell::prepare(Aura* triggeredByAura, uint32 chance)
         {
             // will show cast bar
             SendSpellStart();
+
             // add gcd server side (client side is handled by client itself)
             if (!m_caster->IsPlayer() || !static_cast<Player*>(m_caster)->HasCheatOption(PLAYER_CHEAT_NO_COOLDOWN))
                 m_caster->AddGCD(m_spellInfo);
         }
+
         // execute triggered without cast time explicitly in call point
-        else if ((m_timer == 0) &&
-            // Prevent scenario where pet has a periodic aura that
-            // triggers another spell to deal damage to owner,
-            // causing owner to die and pet gets despawned, leading to
-            // deletion of auras on pet and crash when stack unwinds.
-            // An example of this is spell 3584 Volatile Infection.
-            !(triggeredByAura && m_spellInfo->IsDirectDamageSpell() && m_caster->IsCreature()))
-            cast(true);
+        if (ShouldExecuteCastInstantly())
+            cast(m_IsTriggeredSpell);
 
         // else triggered with cast time will execute at next tick or later
         // without adding to cast type slot
@@ -5325,7 +5321,13 @@ SpellCastResult Spell::CheckCast(bool strict)
         && !m_spellInfo->IsAutoRepeatRangedSpell() // auto shot managed by attack timer
         && !m_caster->IsSpellReady(m_spellInfo, m_CastItem ? m_CastItem->GetProto() : nullptr))
     {
-        return (m_triggeredByAuraSpell || m_spellInfo->Attributes & SPELL_ATTR_COOLDOWN_ON_EVENT) ? SPELL_FAILED_DONT_REPORT : SPELL_FAILED_NOT_READY;
+        if (m_triggeredByAuraSpell || m_spellInfo->Attributes & SPELL_ATTR_COOLDOWN_ON_EVENT)
+            return SPELL_FAILED_DONT_REPORT;
+        // only SPELL_FAILED_NOT_READY lets the client release a cooldown it holds until an event
+        else if (m_CastItem && !m_spellInfo->HasAttribute(SPELL_ATTR_COOLDOWN_ON_EVENT))
+            return SPELL_FAILED_ITEM_NOT_READY;
+        else
+            return SPELL_FAILED_NOT_READY;
     }
 
     // check death state to prevent cheating ("deathbug")
@@ -6623,6 +6625,11 @@ SpellCastResult Spell::CheckCasterAuras() const
         prevented_reason = SPELL_FAILED_CONFUSED;
     else if ((unitflag & UNIT_FLAG_FLEEING) && !(mechanic_immune & (1 << (MECHANIC_FEAR - 1u))))
         prevented_reason = SPELL_FAILED_FLEEING;
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_10_2
+    // While charmed client shouldn't be able to cast anything except spells that remove the charm.
+    else if ((unitflag & UNIT_FLAG_POSSESSED) && !(mechanic_immune & (1 << (MECHANIC_CHARM - 1u))) && m_isClientStarted)
+        prevented_reason = SPELL_FAILED_CHARMED;
+#endif
     // Silence check seems to only be performed if not stunned.
     // Mages can blink out of stun even when silenced.
     // https://www.youtube.com/watch?v=NiWibn2GdbA
@@ -6661,6 +6668,14 @@ SpellCastResult Spell::CheckCasterAuras() const
                     // That is needed when your casting is prevented by multiple states and you are only immune to some of them.
                     switch (aura->GetModifier()->m_auraname)
                     {
+#if SUPPORTED_CLIENT_BUILD > CLIENT_BUILD_1_10_2
+                        case SPELL_AURA_MOD_POSSESS:
+                        case SPELL_AURA_MOD_CHARM:
+                        case SPELL_AURA_AOE_CHARM:
+                            if (!(mechanic_immune & (1 << (MECHANIC_CHARM - 1u))))
+                                return SPELL_FAILED_CHARMED;
+                            break;
+#endif
                         case SPELL_AURA_MOD_STUN:
                             if (!(mechanic_immune & (1 << (MECHANIC_STUN - 1u))))
                                 return SPELL_FAILED_STUNNED;
@@ -8310,7 +8325,7 @@ bool Spell::IsTriggeredByProc() const
     return false;
 }
 
-bool Spell::ShouldRemoveStealthAuras()
+bool Spell::ShouldRemoveStealthAuras() const
 {
     if (!m_casterUnit)
         return false;
@@ -8342,6 +8357,25 @@ bool Spell::ShouldRemoveStealthAuras()
 
     return false;
 }
+
+bool Spell::ShouldExecuteCastInstantly() const
+{
+    if (m_timer != 0)
+        return false;
+
+    // Prevent scenario where pet has a periodic aura that
+    // triggers another spell to deal damage to owner,
+    // causing owner to die and pet gets despawned, leading to
+    // deletion of auras on pet and crash when stack unwinds.
+    // An example of this is spell 3584 Volatile Infection.
+    if (m_IsTriggeredSpell)
+        return !(m_triggeredByAuraSpell && m_spellInfo->IsDirectDamageSpell() && m_caster->IsCreature());
+
+    // Client started spells are executed instantly so that SpellStopCasting macros can chain multiple instant spells.
+    // The container check will exclude melee, auto repeat and channeled spells.
+    return m_isClientStarted && GetCurrentContainer() == CURRENT_GENERIC_SPELL;
+}
+
 void Spell::Delete() const
 {
     if (IsDeletable())

@@ -233,7 +233,7 @@ struct CharmInfo
     bool AddSpellToActionBar(uint32 spellId, ActiveStates newstate = ACT_DECIDE);
     bool RemoveSpellFromActionBar(uint32 spellId);
     void LoadPetActionBar(std::string const& data);
-    void BuildActionBar(WorldPacket* data);
+    void BuildActionBar(std::array<uint32, 10>& data);
     void SetSpellAutocast(uint32 spellId, bool state);
     void SetActionBar(uint8 index, uint32 spellOrAction,ActiveStates type)
     {
@@ -672,7 +672,6 @@ class Unit : public SpellCaster
         void SendPlaySpellVisualKit(uint32 id) const;
         void SendPeriodicAuraLog(SpellPeriodicAuraLogInfo const* pInfo, AuraType auraTypeOverride = SPELL_AURA_NONE) const;
         void SendEnvironmentalDamageLog(uint8 type, uint32 damage, uint32 absorb, int32 resist) const;
-        void WritePetSpellsCooldown(WorldPacket& data) const;
         void CancelSpellChannelingAnimationInstantly();
 
         SpellAuraHolder* AddAura(uint32 spellId, uint32 addAuraFlags = 0, Unit* pCaster = nullptr);
@@ -708,6 +707,7 @@ class Unit : public SpellCaster
         void RemoveAurasDueToItemSpell(Item const* castItem, uint32 spellId);
         void RemoveAurasByCasterSpell(uint32 spellId, ObjectGuid casterGuid, AuraRemoveMode mode = AURA_REMOVE_BY_DEFAULT);
         void RemoveAurasDueToSpellByCancel(uint32 spellId);
+        void RemoveSingleAuraDueToSpellByCancel(uint32 spellId, Unit const* user);
 
         // removing unknown aura stacks by diff reasons and selections
         void RemoveNotOwnSingleTargetAuras();
@@ -981,6 +981,7 @@ class Unit : public SpellCaster
         void AttackerStateUpdate(Unit* pVictim, WeaponAttackType attType = BASE_ATTACK, bool extra = false);
         void SendAttackStateUpdate(CalcDamageInfo const* damageInfo) const;
         void SendAttackStateUpdate(uint32 hitInfo, Unit const* target, SpellSchoolMask damageSchoolMask, uint32 damage, uint32 absorbDamage, int32 resist, VictimState targetState, uint32 blockedAmount) const;
+        std::unique_ptr<ServerPacket const> BuildMeleeAttackStopPacket(ObjectGuid victimGuid = ObjectGuid()) const;
         void SendMeleeAttackStop(Unit const* victim) const;
         void SendMeleeAttackStart(Unit const* pVictim) const;
 
@@ -1311,11 +1312,13 @@ class Unit : public SpellCaster
         void SetHoverReal(bool apply);
         bool IsHovering() const { return m_movementInfo.HasMovementFlag(MOVEFLAG_HOVER); }
 
+        // hover and levitate mean the same thing
+        void SetLevitate(bool apply) { SetHover(apply); }
+        bool IsLevitating() const { return IsHovering(); }
+
         void SetFeatherFall(bool apply);
         void SetFeatherFallReal(bool apply);
         bool IsFallingSlow() const { return m_movementInfo.HasMovementFlag(MOVEFLAG_SAFE_FALL); }
-
-        void SetLevitate(bool apply);
 
         void KnockBackFrom(WorldObject const* target, float horizontalSpeed, float verticalSpeed);
         void KnockBack(float angle, float horizontalSpeed, float verticalSpeed);

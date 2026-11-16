@@ -665,7 +665,7 @@ void WorldSession::HandleChatMessageOpcode(WorldPackets::Chat::ChatMessage const
 
 void WorldSession::HandleEmoteOpcode(WorldPackets::Misc::Emote const& packet)
 {
-    if (!GetPlayer()->IsAlive() || GetPlayer()->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PREVENT_ANIM))
+    if (!GetPlayer()->IsAlive()  || GetPlayer()->IsCharmed() || GetPlayer()->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NO_EMOTE_ANIM))
         return;
 
     if (!GetPlayer()->CanSpeak())
@@ -718,7 +718,7 @@ private:
 
 void WorldSession::HandleTextEmoteOpcode(WorldPackets::Misc::TextEmote const& packet)
 {
-    if (!GetPlayer()->IsAlive() || GetPlayer()->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_PREVENT_ANIM))
+    if (!GetPlayer()->IsAlive() || GetPlayer()->IsCharmed() || GetPlayer()->HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_NO_EMOTE_ANIM))
         return;
 
     if (!GetPlayer()->CanSpeak())

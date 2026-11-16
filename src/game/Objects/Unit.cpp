@@ -2338,14 +2338,18 @@ void Unit::SendMeleeAttackStart(Unit const* pVictim) const
     SendObjectMessageToSet(std::move(packet), true);
 }
 
-void Unit::SendMeleeAttackStop(Unit const* pVictim) const
+std::unique_ptr<ServerPacket const> Unit::BuildMeleeAttackStopPacket(ObjectGuid victimGuid) const
 {
     auto packet = std::make_unique<WorldPackets::Combat::AttackStop>();
     packet->attackerGuid = GetObjectGuid();
-    if (pVictim)
-        packet->victimGuid = pVictim->GetObjectGuid();
+    packet->victimGuid = victimGuid;
     packet->isDead = GetHealth() == 0;
-    SendObjectMessageToSet(std::move(packet), true);
+    return std::move(packet);
+}
+
+void Unit::SendMeleeAttackStop(Unit const* pVictim) const
+{
+    SendObjectMessageToSet(BuildMeleeAttackStopPacket(pVictim ? pVictim->GetObjectGuid() : ObjectGuid()), true);
 }
 
 bool Unit::IsSpellPartiallyBlocked(SpellCaster const* pCaster, SpellEntry const* spellEntry, WeaponAttackType attackType) const
@@ -3646,6 +3650,19 @@ void Unit::RemoveAurasDueToSpellByCancel(uint32 spellId)
         RemoveSpellAuraHolder(iter->second, AURA_REMOVE_BY_CANCEL);
         spair = GetSpellAuraHolderBounds(spellId);
         iter = spair.first;
+    }
+}
+
+void Unit::RemoveSingleAuraDueToSpellByCancel(uint32 spellId, Unit const* user)
+{
+    SpellAuraHolderBounds spair = GetSpellAuraHolderBounds(spellId);
+    for (SpellAuraHolderMap::iterator iter = spair.first; iter != spair.second; ++iter)
+    {
+        if (iter->second->IsManuallyCancelableBy(user))
+        {
+            RemoveSpellAuraHolder(iter->second, AURA_REMOVE_BY_CANCEL);
+            return;
+        }
     }
 }
 
@@ -7296,14 +7313,6 @@ void Unit::SetHoverReal(bool apply)
         RemoveUnitMovementFlag(MOVEFLAG_HOVER);
 }
 
-void Unit::SetLevitate(bool enable)
-{
-    if (enable)
-        m_movementInfo.AddMovementFlag(MOVEFLAG_LEVITATING);
-    else
-        m_movementInfo.RemoveMovementFlag(MOVEFLAG_LEVITATING);
-}
-
 void Unit::SetFly(bool enable)
 {
     if (enable)
@@ -8554,10 +8563,10 @@ void CharmInfo::LoadPetActionBar(std::string const& data)
     }
 }
 
-void CharmInfo::BuildActionBar(WorldPacket* data)
+void CharmInfo::BuildActionBar(std::array<uint32, 10>& data)
 {
-    for (const auto& i : m_petActionBar)
-        *data << uint32(i.packedData);
+    for (size_t i = 0; i < data.size(); ++i)
+        data[i] = m_petActionBar[i].packedData;
 }
 
 void CharmInfo::SetSpellAutocast(uint32 spellId, bool state)
@@ -9043,7 +9052,7 @@ void Unit::SendPetCastFail(uint32 spellId, SpellCastResult msg)
 
 void Unit::SendPetActionFeedback(uint8 msg)
 {
-    if (Player* pOwner = GetOwnerPlayer())
+    if (Player* pOwner = ::ToPlayer(GetCharmerOrOwner()))
     {
         auto packet = std::make_unique<WorldPackets::Pet::PetActionFeedback>();
         packet->message = msg;
@@ -10992,41 +11001,4 @@ void Unit::SetNativeScale(float scale)
 {
     SetTransformScale(scale);
     m_nativeScale = scale;
-}
-
-void Unit::WritePetSpellsCooldown(WorldPacket& data) const
-{
-    // write cooldown data
-    uint32 cdCount = 0;
-    const size_t cdCountPos = data.wpos();
-    data << uint16(0);
-    auto currTime = sWorld.GetCurrentClockTime();
-
-    for (auto& cdItr : m_cooldownMap)
-    {
-        auto& cdData = cdItr.second;
-        TimePoint spellRecTime = currTime;
-        TimePoint catRecTime = currTime;
-        cdData->GetSpellCDExpireTime(spellRecTime);
-        cdData->GetCatCDExpireTime(catRecTime);
-        uint32 spellCDDuration = 0;
-        uint32 catCDDuration = 0;
-        if (spellRecTime > currTime)
-            spellCDDuration = std::chrono::duration_cast<std::chrono::milliseconds>(spellRecTime - currTime).count();
-        if (catRecTime > currTime)
-            catCDDuration = std::chrono::duration_cast<std::chrono::milliseconds>(catRecTime - currTime).count();
-
-        if (!spellCDDuration && !catCDDuration && !cdData->IsPermanent())
-            continue;
-
-        if (cdData->IsPermanent())
-            catCDDuration |= 0x8000000;
-
-        data << uint32(cdData->GetSpellEntry()->Id);
-        data << uint16(cdData->GetCategory());              // spell category
-        data << uint32(spellCDDuration);                    // cooldown
-        data << uint32(catCDDuration);                      // category cooldown
-        ++cdCount;
-    }
-    data.put<uint16>(cdCountPos, cdCount);
 }
