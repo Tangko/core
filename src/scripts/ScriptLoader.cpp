@@ -253,6 +253,7 @@ void AddSC_special_spell_scripts();
 void AddSC_warlock_spell_scripts();
 void AddSC_warrior_spell_scripts();
 
+//这里添加调用
 void AddScripts()
 {
 	AddSC_pet_swap();
