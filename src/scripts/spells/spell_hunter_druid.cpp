@@ -78,6 +78,22 @@ struct HunterDruidScript : SpellScript
 		if (!player)
 			return SPELL_FAILED_ERROR;
 
+		// 战场禁止（阿拉希、奥特兰克、战歌）
+		static const uint32 FORBIDDEN_MAPS[] = {
+			529,   // 阿拉希盆地
+			30,    // 奥特兰克山谷
+			489,   // 战歌峡谷
+		};
+		uint32 mapId = player->GetMapId();
+		for (uint32 m : FORBIDDEN_MAPS)
+		{
+			if (m == mapId)
+			{
+				ChatHandler(player->GetSession()).SendSysMessage("\xE6\x9C\xAC\xE5\x9C\xB0\xE5\x9B\xBE\xE7\xA6\x81\xE6\xAD\xA2\xE4\xBD\xBF\xE7\x94\xA8");
+				return SPELL_FAILED_NOT_HERE;
+			}
+		}
+
 		if (player->GetClass() != CLASS_HUNTER)
 			return SPELL_FAILED_BAD_TARGETS;
 

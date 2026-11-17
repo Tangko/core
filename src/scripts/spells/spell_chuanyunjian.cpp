@@ -7,7 +7,7 @@
 
 ArrowRecord g_arrowRecords[2];
 
-// 禁止区域（6 大主城所在区域）
+// 禁止区域（6 大主城 + 主城所在大区域）
 static const uint32 FORBIDDEN_ZONES[] = {
 	// 主城
 	1519,  // 暴风城
@@ -16,19 +16,20 @@ static const uint32 FORBIDDEN_ZONES[] = {
 	1637,  // 奥格瑞玛
 	1638,  // 雷霆崖
 	1657,  // 达纳苏斯
-	// 主城所在大区域（可选，防止在主城周边使用）
-	12,    // 艾尔文森林
-	1,     // 丹莫罗
-	85,    // 提瑞斯法林地
-	14,    // 杜隆塔尔
-	215,   // 莫高雷
-	141,   // 泰达希尔
+		   // 主城所在大区域
+		   12,    // 艾尔文森林
+		   1,     // 丹莫罗
+		   85,    // 提瑞斯法林地
+		   14,    // 杜隆塔尔
+		   215,   // 莫高雷
+		   141,   // 泰达希尔
 };
 
-// 禁止地图（2 个战场）
+// 禁止地图（3 个战场）
 static const uint32 FORBIDDEN_MAPS[] = {
 	529,   // 阿拉希盆地
 	30,    // 奥特兰克山谷
+	489,   // 战歌峡谷
 };
 
 // 34001 - 穿云箭
@@ -36,6 +37,7 @@ struct ChuanyunjianScript : SpellScript
 {
 	SpellCastResult OnCheckCast(Spell* spell, bool /*strict*/) const override
 	{
+		sLog.Out(LOG_SCRIPTS, LOG_LVL_MINIMAL, "[CYJ] OnCheckCast");
 		Player* player = spell->m_caster ? spell->m_caster->ToPlayer() : nullptr;
 		if (!player)
 			return SPELL_FAILED_ERROR;
@@ -62,6 +64,13 @@ struct ChuanyunjianScript : SpellScript
 			}
 		}
 
+		// 检查副本/团本（IsDungeon 已包含 Raid）
+		if (player->GetMap()->IsDungeon())
+		{
+			ChatHandler(player->GetSession()).SendSysMessage("\xE6\x9C\xAC\xE5\x9C\xB0\xE5\x9B\xBE\xE7\xA6\x81\xE6\xAD\xA2\xE4\xBD\xBF\xE7\x94\xA8");
+			return SPELL_FAILED_NOT_HERE;
+		}
+
 		// 阵营判定
 		uint32 team = player->GetTeamId();
 		if (team > 1)
@@ -79,6 +88,7 @@ struct ChuanyunjianScript : SpellScript
 
 	bool OnEffectExecute(Spell* spell, SpellEffectIndex effIdx) const final
 	{
+		sLog.Out(LOG_SCRIPTS, LOG_LVL_MINIMAL, "[CYJ] OnEffectExecute effIdx=%d", (int)effIdx);
 		if (effIdx != EFFECT_INDEX_0)
 			return true;
 
