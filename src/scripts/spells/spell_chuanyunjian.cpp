@@ -7,10 +7,28 @@
 
 ArrowRecord g_arrowRecords[2];
 
-// 白名单区域
-static const uint32 ALLOWED_ZONES[] = {
-	28, 139, 36, 267, 47, 45, 11, 51, 3, 46, 44, 10, 41, 8, 33, 4,
-	361, 618, 331, 406, 405, 15, 357, 400, 1377, 490, 440,
+// 禁止区域（6 大主城所在区域）
+static const uint32 FORBIDDEN_ZONES[] = {
+	// 主城
+	1519,  // 暴风城
+	1537,  // 铁炉堡
+	1497,  // 幽暗城
+	1637,  // 奥格瑞玛
+	1638,  // 雷霆崖
+	1657,  // 达纳苏斯
+	// 主城所在大区域（可选，防止在主城周边使用）
+	12,    // 艾尔文森林
+	1,     // 丹莫罗
+	85,    // 提瑞斯法林地
+	14,    // 杜隆塔尔
+	215,   // 莫高雷
+	141,   // 泰达希尔
+};
+
+// 禁止地图（2 个战场）
+static const uint32 FORBIDDEN_MAPS[] = {
+	529,   // 阿拉希盆地
+	30,    // 奥特兰克山谷
 };
 
 // 34001 - 穿云箭
@@ -22,17 +40,26 @@ struct ChuanyunjianScript : SpellScript
 		if (!player)
 			return SPELL_FAILED_ERROR;
 
-		// 地图限制
+		// 检查主城区域
 		uint32 zoneId = player->GetZoneId();
-		bool allowed = false;
-		for (uint32 z : ALLOWED_ZONES)
+		for (uint32 z : FORBIDDEN_ZONES)
 		{
-			if (z == zoneId) { allowed = true; break; }
+			if (z == zoneId)
+			{
+				ChatHandler(player->GetSession()).SendSysMessage("\xE6\x9C\xAC\xE5\x9C\xB0\xE5\x9B\xBE\xE7\xA6\x81\xE6\xAD\xA2\xE4\xBD\xBF\xE7\x94\xA8");
+				return SPELL_FAILED_NOT_HERE;
+			}
 		}
-		if (!allowed)
+
+		// 检查战场
+		uint32 mapId = player->GetMapId();
+		for (uint32 m : FORBIDDEN_MAPS)
 		{
-			ChatHandler(player->GetSession()).SendSysMessage("\xE6\x9C\xAC\xE5\x9C\xB0\xE5\x9B\xBE\xE7\xA6\x81\xE6\xAD\xA2\xE4\xBD\xBF\xE7\x94\xA8");
-			return SPELL_FAILED_NOT_HERE;
+			if (m == mapId)
+			{
+				ChatHandler(player->GetSession()).SendSysMessage("\xE6\x9C\xAC\xE5\x9C\xB0\xE5\x9B\xBE\xE7\xA6\x81\xE6\xAD\xA2\xE4\xBD\xBF\xE7\x94\xA8");
+				return SPELL_FAILED_NOT_HERE;
+			}
 		}
 
 		// 阵营判定
@@ -52,7 +79,7 @@ struct ChuanyunjianScript : SpellScript
 
 	bool OnEffectExecute(Spell* spell, SpellEffectIndex effIdx) const final
 	{
-		if (effIdx != EFFECT_INDEX_1)
+		if (effIdx != EFFECT_INDEX_0)
 			return true;
 
 		Player* player = spell->m_caster->ToPlayer();
