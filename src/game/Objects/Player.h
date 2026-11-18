@@ -1422,6 +1422,9 @@ class Player final: public Unit
         bool ResetTalents(bool noCost = false);
         void InitTalentForLevel();
         bool LearnTalent(uint32 talentId, uint32 talentRank);
+        uint32 GetTalentTreePoints(uint32 talentTabId) const;
+        bool HasHealerTalent() const;
+        bool HasGrowthFullBonus() const { return m_growthFullBonus; }
 
         /*********************************************************/
         /***                    STAT SYSTEM                    ***/
@@ -1577,6 +1580,8 @@ class Player final: public Unit
         bool HasSkill(uint16 id) const;
 
         void UpdateSkillsToMaxSkillsForLevel();             // for .levelup
+
+        bool m_growthFullBonus = false;   // 小号成长：账号内有 60 级角色
 
         /*********************************************************/
         /***                  LOCATION SYSTEM                  ***/

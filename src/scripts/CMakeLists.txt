@@ -38,6 +38,7 @@ set (SCRIPTS_SRCS
     battlegrounds/battleground_alterac.cpp
     custom/custom.cpp
     custom/custom_creatures.cpp
+  custom/custom_gold_time.cpp
     eastern_kingdoms/alterac_mountains/alterac_mountains.cpp
     eastern_kingdoms/arathi_highlands/arathi_highlands.cpp
     eastern_kingdoms/blasted_lands/blasted_lands.cpp

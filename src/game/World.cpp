@@ -1999,10 +1999,112 @@ void World::Update(uint32 diff)
     // Update the game time and check for shutdown time
     _UpdateGameTime();
 
+    // Gold time price decay: run immediately on startup and then every 5 minutes.
+    // The UPDATE itself allows at most one drop per 12h window (last_price_change_time),
+    // so running it often is safe and survives server restarts.
+    {
+        static uint32 goldTimeDecayTimer = 300000;   // fire on the first update after startup
+        goldTimeDecayTimer += diff;
+        if (goldTimeDecayTimer >= 300000)
+        {
+            goldTimeDecayTimer = 0;
+
+            uint32 priceBefore = 0;
+            if (std::unique_ptr<QueryResult> res = LoginDatabase.Query("SELECT current_price FROM gold_time_price WHERE id = 1"))
+                priceBefore = res->Fetch()[0].GetUInt32();
+
+            LoginDatabase.Execute(
+                "UPDATE gold_time_price SET current_price = GREATEST(current_price - 1, 400), "
+                "last_price_change_time = UNIX_TIMESTAMP() "
+                "WHERE last_purchase_time < UNIX_TIMESTAMP() - 43200 "
+                "AND last_price_change_time < UNIX_TIMESTAMP() - 43200 "
+                "AND current_price > 400");
+
+            uint32 priceAfter = 0;
+            if (std::unique_ptr<QueryResult> res = LoginDatabase.Query("SELECT current_price FROM gold_time_price WHERE id = 1"))
+                priceAfter = res->Fetch()[0].GetUInt32();
+
+            if (priceAfter && priceAfter != priceBefore)
+            {
+                sLog.Out(LOG_BASIC, LOG_LVL_MINIMAL, "[GOLD TIME] price decayed %u -> %u (no purchase for 12h)", priceBefore, priceAfter);
+                LoginDatabase.PExecute(
+                    "INSERT INTO gold_time_log (account_id, player_name, change_type, price_before, price_after, change_value) "
+                    "VALUES (NULL, NULL, 'TIME', %u, %u, -1)", priceBefore, priceAfter);
+            }
+        }
+    }
+
+	// ========== Expansion shop item orders: mail delivery every 10 seconds ==========
+	static uint32 expansionOrderTimer = 0;
+	expansionOrderTimer += diff;
+	if (expansionOrderTimer >= 10000)
+	{
+		expansionOrderTimer = 0;
+		std::unique_ptr<QueryResult> orders(LoginDatabase.PQuery(
+			"SELECT id, username, item_id, item_count, claimed_character FROM expansion_item_orders "
+			"WHERE status = 'pending' AND claimed_character IS NOT NULL AND claimed_character <> '' LIMIT 10"));
+
+		if (orders)
+		{
+			do
+			{
+				Field* fields = orders->Fetch();
+				uint32 orderId = fields[0].GetUInt32();
+				std::string username = fields[1].GetString() ? fields[1].GetString() : "";
+				uint32 itemId = fields[2].GetUInt32();
+				uint32 itemCount = fields[3].GetUInt32();
+				std::string charName = fields[4].GetString() ? fields[4].GetString() : "";
+
+				uint32 charGuidLow = 0;
+				uint32 charAccount = 0;
+				std::unique_ptr<QueryResult> charResult(CharacterDatabase.PQuery(
+					"SELECT guid, account FROM characters WHERE name = '%s'", charName.c_str()));
+				if (charResult)
+				{
+					Field* cf = charResult->Fetch();
+					charGuidLow = cf[0].GetUInt32();
+					charAccount = cf[1].GetUInt32();
+				}
+
+				uint32 accountId = 0;
+				std::unique_ptr<QueryResult> accResult(LoginDatabase.PQuery(
+					"SELECT id FROM account WHERE UPPER(username) = UPPER('%s')", username.c_str()));
+				if (accResult)
+					accountId = accResult->Fetch()[0].GetUInt32();
+
+				if (charGuidLow && accountId && charAccount == accountId)
+				{
+					ObjectGuid charGuid(HIGHGUID_PLAYER, charGuidLow);
+					MailDraft draft("\xE6\x8B\x93\xE5\xB1\x95\xE5\x95\x86\xE5\xBA\x97\xE9\x81\x93\xE5\x85\xB7", "\xE6\x84\x9F\xE8\xB0\xA2\xE6\x82\xA8\xE7\x9A\x84\xE8\xB4\xAD\xE4\xB9\xB0\xEF\xBC\x8C\xE9\x81\x93\xE5\x85\xB7\xE5\xB7\xB2\xE9\x80\x81\xE8\xBE\xBE\xEF\xBC\x8C\xE8\xAF\xB7\xE6\x9F\xA5\xE6\x94\xB6\xE9\x99\x84\xE4\xBB\xB6\xE3\x80\x82");
+					Item* mailItem = Item::CreateItem(itemId, itemCount);
+					if (!mailItem)
+					{
+						LoginDatabase.PExecute(
+							"UPDATE expansion_item_orders SET status = 'failed' WHERE id = %u", orderId);
+						continue;
+					}
+					mailItem->SaveToDB();          // must persist item_instance before the mail references it
+					draft.AddItem(mailItem);
+					draft.SendMailTo(MailReceiver(charGuid),
+						MailSender(MAIL_NORMAL, uint32(0), MAIL_STATIONERY_GM),
+						MAIL_CHECK_MASK_COPIED, 0, 2592000);
+
+					LoginDatabase.PExecute(
+						"UPDATE expansion_item_orders SET status = 'sent', sent_at = NOW() WHERE id = %u", orderId);
+				}
+				else
+				{
+					LoginDatabase.PExecute(
+						"UPDATE expansion_item_orders SET status = 'failed' WHERE id = %u", orderId);
+				}
+			} while (orders->NextRow());
+		}
+	}
+
 	// Update mass mailer tasks if any
 	sMassMailMgr.Update();
 
-	// ========== 招募奖励邮件发送（每10秒检查一次）==========
+	// ========== 招募奖励邮件发送（�?0秒检查一次）==========
 	static uint32 recruitRewardTimer = 0;
 	recruitRewardTimer += diff;
 	if (recruitRewardTimer >= 10000) {
@@ -2063,9 +2165,9 @@ void World::Update(uint32 diff)
 			} while (result->NextRow());
 		}
 	}
-	// ========== 招募奖励邮件发送结束 ==========
+	// ========== 招募奖励邮件发送结�?==========
 
-	// 定时踢出时间用尽的玩家（每60秒检查一次）
+	// 定时踢出时间用尽的玩家（�?0秒检查一次）
 	static uint32 timeCheckTimer = 0;
 	timeCheckTimer += diff;
 	if (timeCheckTimer >= 60000) {
@@ -2870,6 +2972,32 @@ void World::SendServerMessage(ServerMessageType type, char const* text, Player* 
 
 void World::UpdateSessions(uint32 diff)
 {
+    // Healer talent buff: force removal in dungeons/raids/battlegrounds, at level 60, or when talent no longer qualifies
+    {
+        static uint32 healerBuffTimer = 0;
+        healerBuffTimer += diff;
+        if (healerBuffTimer >= 2000)
+        {
+            healerBuffTimer = 0;
+            for (SessionMap::const_iterator itr = m_sessions.begin(); itr != m_sessions.end(); ++itr)
+            {
+                WorldSession* session = itr->second;
+                if (!session)
+                    continue;
+
+                Player* plr = session->GetPlayer();
+                if (!plr || !plr->IsInWorld())
+                    continue;
+
+                if (!plr->HasAura(34007))
+                    continue;
+
+                if (plr->GetLevel() >= 60 || plr->GetMap()->IsDungeon() || plr->InBattleGround() || !plr->HasHealerTalent())
+                    plr->RemoveAurasDueToSpell(34007);
+            }
+        }
+    }
+
     // Update player limit if needed
     int32 hardPlayerLimit = getConfig(CONFIG_UINT32_PLAYER_HARD_LIMIT);
     if (hardPlayerLimit)

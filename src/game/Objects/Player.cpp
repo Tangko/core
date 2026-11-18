@@ -1110,12 +1110,52 @@ AutoAttackCheckResult Player::CanAutoAttackTarget(Unit const* pVictim) const
     return Unit::CanAutoAttackTarget(pVictim);
 }
 
+static std::unordered_map<uint32, bool> s_growthChecked;
+
 void Player::Update(uint32 update_diff, uint32 p_time)
 {
     if (!IsInWorld())
         return;
 
     UpdateMirrorTimers(update_diff);
+
+	// 福利 Buff：进入世界后执行一次（LoadFromDB 阶段挂不上光环）
+	if (s_growthChecked.emplace(GetGUIDLow(), true).second)
+	{
+		auto result1 = CharacterDatabase.PQuery(
+			"SELECT guid FROM characters WHERE account = %u AND level >= 60 LIMIT 1",
+			GetSession()->GetAccountId()
+		);
+		bool has60 = (result1 != nullptr);
+
+		auto result2 = LoginDatabase.PQuery(
+			"SELECT id FROM invite_records "
+			"WHERE UPPER(inviter) = UPPER('%s') OR UPPER(invitee) = UPPER('%s') LIMIT 1",
+			GetSession()->GetUsername().c_str(), GetSession()->GetUsername().c_str()
+		);
+		bool hasRecruit = (result2 != nullptr);
+
+		if (!hasRecruit)
+		{
+			auto result3 = LoginDatabase.PQuery(
+				"SELECT id FROM recruit_rewards "
+				"WHERE UPPER(account_name) = UPPER('%s') "
+				"AND reward_type = 'RECRUIT_BAG' "
+				"AND status IN ('claimed', 'sent') LIMIT 1",
+				GetSession()->GetUsername().c_str()
+			);
+			hasRecruit = (result3 != nullptr);
+		}
+
+		bool const belowMax = GetLevel() < 60;
+		m_growthFullBonus = belowMax && has60;
+
+		bool shouldHaveBuff = belowMax && (has60 || hasRecruit);
+		if (shouldHaveBuff && !HasAura(34006))
+			AddAura(34006, EFFECT_INDEX_0, this);
+		if (!shouldHaveBuff && HasAura(34006))
+			RemoveAurasDueToSpell(34006);
+	}
 
     //used to implement delayed far teleports
     SetCanDelayTeleport(true);
@@ -2217,6 +2257,8 @@ void Player::ProcessDelayedOperations()
 
 void Player::AddToWorld()
 {
+    s_growthChecked.erase(GetGUIDLow());
+
     // Do not add/remove the player from the object storage
     // It will crash when updating the ObjectAccessor
     // The player should only be added when logging in
@@ -3248,8 +3290,10 @@ void Player::GiveLevel(uint32 level)
 		pet->SynchronizeLevelWithOwner();
 
 	// ========== 满 60 级移除双倍经验 BUFF ==========
-	if (level >= 60 && HasAura(34006)) {
-		RemoveAurasDueToSpell(34006);
+	if (level >= 60) {
+		if (HasAura(34006))
+			RemoveAurasDueToSpell(34006);
+		m_growthFullBonus = false;
 	}
 	// ========== 满 60 级移除双倍经验 BUFF 结束 ==========
 
@@ -4144,6 +4188,50 @@ uint32 Player::GetResetTalentsCost() const
     return (m_resetTalentsMultiplier * multiCost) * GOLD;
 }
 
+uint32 Player::GetTalentTreePoints(uint32 talentTabId) const
+{
+    uint32 points = 0;
+    uint32 const numRows = sTalentStore.GetNumRows();
+
+    for (uint32 i = 0; i < numRows; ++i)
+    {
+        TalentEntry const* talentInfo = sTalentStore.LookupEntry(i);
+        if (!talentInfo || talentInfo->TalentTab != talentTabId)
+            continue;
+
+        for (int32 rank = MAX_TALENT_RANK - 1; rank >= 0; --rank)
+        {
+            uint32 spellId = talentInfo->RankID[rank];
+            if (spellId && HasSpell(spellId))
+            {
+                points += uint32(rank) + 1;
+                break;
+            }
+        }
+    }
+
+    return points;
+}
+
+bool Player::HasHealerTalent() const
+{
+    uint32 healTab = 0, secondTab = 0, thirdTab = 0;
+
+    switch (GetClass())
+    {
+        case CLASS_PALADIN: healTab = 382; secondTab = 381; thirdTab = 383; break;
+        case CLASS_SHAMAN:  healTab = 262; secondTab = 261; thirdTab = 263; break;
+        case CLASS_PRIEST:  healTab = 202; secondTab = 201; thirdTab = 203; break;
+        case CLASS_DRUID:   healTab = 282; secondTab = 281; thirdTab = 283; break;
+        default: return false;
+    }
+
+    uint32 healPoints = GetTalentTreePoints(healTab);
+    uint32 secondPoints = GetTalentTreePoints(secondTab);
+    uint32 thirdPoints = GetTalentTreePoints(thirdTab);
+
+    return healPoints >= secondPoints + 5 && healPoints >= thirdPoints + 5;
+}
 bool Player::ResetTalents(bool noCost)
 {
     // not need after this call
@@ -5259,6 +5347,10 @@ void Player::SetRegularAttackTime(bool resetTimer)
 //skill+step, checking for max value
 bool Player::UpdateSkill(uint32 skillId, uint32 step)
 {
+    // 成长奖励：武器/防御技能提升翻倍
+    if (HasGrowthFullBonus())
+        step *= 2;
+
     if (!skillId)
         return false;
 
@@ -5382,6 +5474,10 @@ bool Player::UpdateFishingSkill()
 
 bool Player::UpdateSkillPro(uint16 skillId, int32 chance, uint32 step)
 {
+    // 成长奖励：技能提升翻倍（专业/采集/钓鱼）
+    if (HasGrowthFullBonus())
+        step *= 2;
+
     sLog.Out(LOG_BASIC, LOG_LVL_DEBUG, "UpdateSkillPro(SkillId %d, Chance %3.1f%%)", skillId, chance / 10.0);
     if (!skillId)
         return false;
@@ -6433,7 +6529,13 @@ int32 Player::CalculateReputationGain(ReputationSource source, int32 rep, int32 
         percent *= repRate;
     }
 
-    return rand_dither(sWorld.getConfig(CONFIG_FLOAT_RATE_REPUTATION_GAIN) * rep * percent / 100.0f);
+    int32 gain = rand_dither(sWorld.getConfig(CONFIG_FLOAT_RATE_REPUTATION_GAIN) * rep * percent / 100.0f);
+
+    // 成长奖励：只放大正声望，负声望不变
+    if (gain > 0 && HasGrowthFullBonus())
+        gain *= 2;
+
+    return gain;
 }
 
 //Calculates how many reputation points player gains in victim's enemy factions
@@ -15342,37 +15444,6 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder* holder)
     if (sWorld.GetWowPatch() >= WOW_PATCH_112 && !HasCharacterFlag(CHARACTER_FLAG_MOUNT_UPGRADED))
         UpdateOldRidingSkillToNew(hasEpicMount);
 
-	// ========== 双倍经验 BUFF（小号奖励 + 战友招募） ==========
-	if (GetLevel() < 60)
-	{
-		// 条件 1：账户有 60 级角色
-		auto result1 = CharacterDatabase.PQuery(
-			"SELECT guid FROM characters WHERE account = %u AND level = 60 LIMIT 1",
-			GetSession()->GetAccountId()
-		);
-		bool has60 = (result1 != nullptr);
-
-		// 条件 2：招募奖励已领取
-		auto result2 = LoginDatabase.PQuery(
-			"SELECT id FROM recruit_rewards "
-			"WHERE claimed_character = '%s' "
-			"AND reward_type = 'RECRUIT_BAG' "
-			"AND status IN ('claimed', 'sent') LIMIT 1",
-			GetName()
-		);
-		bool hasRecruit = (result2 != nullptr);
-
-		// 满足任意一个条件就加 BUFF
-		bool shouldHaveBuff = has60 || hasRecruit;
-
-		if (shouldHaveBuff && !HasAura(34006)) {
-			AddAura(34006, EFFECT_INDEX_0, this);
-		}
-		else if (!shouldHaveBuff && HasAura(34006)) {
-			RemoveAurasDueToSpell(34006);
-		}
-	}
-	// ========== 双倍经验 BUFF 结束 ==========
 
 	return true;
 }

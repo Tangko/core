@@ -660,6 +660,10 @@ void Unit::DoKillUnit(Unit* pVictim)
 
 uint32 Unit::DealDamage(Unit* pVictim, uint32 damage, CleanDamage const* cleanDamage, DamageEffectType damagetype, SpellSchoolMask damageSchoolMask, SpellEntry const* spellProto, bool durabilityLoss, Spell* spell, bool reflected)
 {
+    // Healer talent buff (34007): +50% damage dealt by a player who has it
+    if (damage && pVictim != this && GetTypeId() == TYPEID_PLAYER && HasAura(34007))
+        damage = uint32(damage * 1.5f);
+
     // World of Warcraft Client Patch 1.7.0 (2005-09-13)
     // - Fixed bug where self-inflicted damage, like Poisonous Blood, wouldn't
     //   break stealth.

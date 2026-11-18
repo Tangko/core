@@ -1903,7 +1903,8 @@ bool ScriptMgr::OnGossipSelect(Player* pPlayer, Creature* pCreature, uint32 send
     {
         if (pTempScript && pTempScript->pGossipSelect)
         {
-            pPlayer->PlayerTalkClass->ClearMenus();
+            // Do not clear menus here: scripts that return false must let the
+            // default gossip handling (vendor / innkeeper / submenu) work.
             return pTempScript->pGossipSelect(pPlayer, pCreature, sender, action);
         }
     }
